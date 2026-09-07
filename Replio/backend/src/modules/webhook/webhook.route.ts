@@ -1,15 +1,15 @@
 import { Router } from "express";
 import {
-  webhookVerificationController,
-  webhookEventController,
+  verifyWebhookController,
+  handleWebhookEventController,
 } from "./webhook.controller";
 
 const router = Router();
 
-// Webhook verification (GET) - public
-router.get("/", webhookVerificationController);
+// Webhook verification (GET)
+router.get("/", verifyWebhookController);
 
-// Webhook events (POST) - public (but verified)
-router.post("/", webhookEventController);
+// Webhook event handling (POST)
+router.post("/", handleWebhookEventController);
 
 export default router;

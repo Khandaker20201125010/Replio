@@ -1,98 +1,54 @@
-import crypto from "crypto";
 import prisma from "../../config/prisma";
-import { env } from "../../config/env";
 import { logger } from "../../utils/logger";
-import { ValidationError } from "../../utils/errors";
+import { env } from "../../config/env";
+import { processComment } from "../comments/comment.service";
 
-export function verifyWebhookSignature(
-  payload: string,
-  signature: string,
-): boolean {
-  if (!env.META_WEBHOOK_VERIFY_TOKEN) {
-    logger.warn(
-      "META_WEBHOOK_VERIFY_TOKEN not set, skipping signature verification",
-    );
-    return true;
-  }
-
-  const expectedSignature =
-    "sha256=" +
-    crypto
-      .createHmac("sha256", env.META_WEBHOOK_VERIFY_TOKEN)
-      .update(payload)
-      .digest("hex");
-
-  return crypto.timingSafeEqual(
-    Buffer.from(signature),
-    Buffer.from(expectedSignature),
-  );
-}
-
-export function verifyWebhookChallenge(
+export async function verifyWebhook(
   mode: string,
   token: string,
   challenge: string,
-): boolean {
-  if (!env.META_WEBHOOK_VERIFY_TOKEN) {
-    logger.warn(
-      "META_WEBHOOK_VERIFY_TOKEN not set, webhook verification may fail",
-    );
-    return false;
+) {
+  if (mode === "subscribe" && token === env.META_WEBHOOK_VERIFY_TOKEN) {
+    return challenge;
   }
-
-  return mode === "subscribe" && token === env.META_WEBHOOK_VERIFY_TOKEN;
+  throw new Error("Invalid webhook verification");
 }
 
-export async function processWebhookEvent(payload: any): Promise<void> {
-  try {
-    // Validate webhook structure
-    if (payload.object !== "page") {
-      logger.warn({ object: payload.object }, "Invalid webhook object");
-      return;
+export async function processWebhookEvent(payload: any) {
+  logger.info({ payload }, "Processing webhook event");
+
+  if (!payload.entry || !Array.isArray(payload.entry)) {
+    logger.warn("Invalid webhook payload structure");
+    return;
+  }
+
+  for (const entry of payload.entry) {
+    if (!entry.changes || !Array.isArray(entry.changes)) {
+      continue;
     }
 
-    // Process each entry
-    for (const entry of payload.entry || []) {
-      // Process each messaging event
-      for (const messaging of entry.messaging || []) {
-        if (messaging.field === "comments") {
-          await processCommentEvent(messaging.value, entry.id);
-        }
+    for (const change of entry.changes) {
+      if (change.field === "comments" && change.value) {
+        await handleCommentEvent(change.value);
       }
     }
-
-    logger.info("Webhook event processed successfully");
-  } catch (error) {
-    logger.error({ error }, "Webhook event processing failed");
-    throw error;
   }
 }
 
-async function processCommentEvent(value: any, pageId: string): Promise<void> {
+async function handleCommentEvent(event: any) {
   try {
-    // Extract comment data
-    const commentId = value.comment_id;
-    const postId = value.post_id;
-    const userId = value.sender_id;
-    const message = value.message;
-    const createdTime = new Date(value.created_time * 1000); // Convert Unix timestamp
+    const { comment_id, post_id, message, from, verb } = event;
 
-    if (!commentId || !postId || !message) {
-      logger.warn({ value }, "Invalid comment event data");
+    // Only process new comments
+    if (verb !== "add") {
+      logger.info({ comment_id, verb }, "Ignoring non-add comment event");
       return;
     }
 
-    // Check if comment already exists (idempotency)
-    const existingComment = await prisma.comment.findUnique({
-      where: { commentId },
-    });
+    // Extract page ID from post_id
+    const pageId = post_id.split("_")[0];
 
-    if (existingComment) {
-      logger.debug({ commentId }, "Comment already exists, skipping");
-      return;
-    }
-
-    // Find the Facebook page in our database
+    // Find connected page
     const facebookPage = await prisma.facebookPage.findFirst({
       where: {
         pageId,
@@ -101,41 +57,54 @@ async function processCommentEvent(value: any, pageId: string): Promise<void> {
     });
 
     if (!facebookPage) {
-      logger.warn({ pageId }, "Facebook page not found in database");
+      logger.warn({ pageId }, "No connected page found for webhook event");
+      return;
+    }
+
+    // Check for duplicate comment
+    const existingComment = await prisma.comment.findFirst({
+      where: {
+        commentId: comment_id,
+      },
+    });
+
+    if (existingComment) {
+      logger.info({ comment_id }, "Comment already exists, skipping");
       return;
     }
 
     // Create comment record
     const comment = await prisma.comment.create({
       data: {
+        commentId: comment_id,
         facebookPageId: facebookPage.id,
-        commentId,
-        postId,
-        userId,
-        userName: null, // Will be fetched from Facebook if needed
+        postId: post_id,
+        userId: from.id,
+        userName: from.name,
         userMessage: message,
-        createdTime,
         status: "PENDING",
+        createdTime: new Date(),
       },
     });
 
     logger.info(
-      {
-        commentId: comment.id,
-        facebookCommentId: commentId,
-        pageId,
-      },
-      "Comment created successfully",
+      { commentId: comment.id, facebookCommentId: comment_id },
+      "Comment created from webhook",
     );
 
-    // Trigger comment processing (in real implementation, this would be a background job)
-    // For now, we'll just log that processing should happen
-    logger.info(
-      { commentId: comment.id },
-      "Comment processing should be triggered",
-    );
+    // Trigger comment processing asynchronously
+    // In production, this should use a job queue
+    setTimeout(async () => {
+      try {
+        await processComment(comment.id);
+      } catch (error) {
+        logger.error(
+          { error, commentId: comment.id },
+          "Async comment processing failed",
+        );
+      }
+    }, 0);
   } catch (error) {
-    logger.error({ error, value }, "Comment event processing failed");
-    throw error;
+    logger.error({ error, event }, "Failed to handle comment event");
   }
 }

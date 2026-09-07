@@ -11,6 +11,13 @@ const env_1 = require("./config/env");
 const error_middleware_1 = require("./middleware/error.middleware");
 const rate_limit_middleware_1 = require("./middleware/rate-limit.middleware");
 const auth_route_1 = __importDefault(require("./modules/auth/auth.route"));
+const facebook_route_1 = __importDefault(require("./modules/facebook/facebook.route"));
+const webhook_route_1 = __importDefault(require("./modules/webhook/webhook.route"));
+const comment_route_1 = __importDefault(require("./modules/comments/comment.route"));
+const reply_route_1 = __importDefault(require("./modules/replies/reply.route"));
+const settings_route_1 = __importDefault(require("./modules/settings/settings.route"));
+const rules_route_1 = __importDefault(require("./modules/rules/rules.route"));
+const analytics_route_1 = __importDefault(require("./modules/analytics/analytics.route"));
 const app = (0, express_1.default)();
 // Security middleware
 app.use((0, helmet_1.default)());
@@ -38,6 +45,13 @@ app.get("/api/health", (req, res) => {
 });
 // API routes
 app.use("/api/auth", auth_route_1.default);
+app.use("/api/facebook", facebook_route_1.default);
+app.use("/api/webhook", webhook_route_1.default);
+app.use("/api/comments", comment_route_1.default);
+app.use("/api/replies", reply_route_1.default);
+app.use("/api/settings", settings_route_1.default);
+app.use("/api/rules", rules_route_1.default);
+app.use("/api/analytics", analytics_route_1.default);
 // Error handling (must be last)
 app.use(error_middleware_1.errorHandler);
 exports.default = app;

@@ -8,6 +8,11 @@ import { authLimiter, apiLimiter } from "./middleware/rate-limit.middleware";
 import authRoutes from "./modules/auth/auth.route";
 import facebookRoutes from "./modules/facebook/facebook.route";
 import webhookRoutes from "./modules/webhook/webhook.route";
+import commentsRoutes from "./modules/comments/comment.route";
+import repliesRoutes from "./modules/replies/reply.route";
+import settingsRoutes from "./modules/settings/settings.route";
+import rulesRoutes from "./modules/rules/rules.route";
+import analyticsRoutes from "./modules/analytics/analytics.route";
 
 const app = express();
 
@@ -46,6 +51,11 @@ app.get("/api/health", (req, res) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/facebook", facebookRoutes);
 app.use("/api/webhook", webhookRoutes);
+app.use("/api/comments", commentsRoutes);
+app.use("/api/replies", repliesRoutes);
+app.use("/api/settings", settingsRoutes);
+app.use("/api/rules", rulesRoutes);
+app.use("/api/analytics", analyticsRoutes);
 
 // Error handling (must be last)
 app.use(errorHandler);

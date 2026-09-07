@@ -101,6 +101,10 @@ export async function disconnectPageController(
     const userId = req.user!.userId;
     const { pageId } = req.params;
 
+    if (Array.isArray(pageId)) {
+      throw new Error("Invalid page ID");
+    }
+
     await disconnectPage(userId, pageId);
 
     res.status(200).json({
@@ -146,6 +150,11 @@ export async function getPageController(
   try {
     const userId = req.user!.userId;
     const { pageId } = req.params;
+
+    if (Array.isArray(pageId)) {
+      throw new Error("Invalid page ID");
+    }
+
     const page = await getPageById(userId, pageId);
 
     res.status(200).json({
