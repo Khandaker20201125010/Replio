@@ -1,13 +1,7 @@
 {
   // Visit https://aka.ms/tsconfig to read more about this file
-  "include": [
-    "src/**/*"
-  ],
-  "exclude": [
-    "dist",
-    "node_modules",
-    "prisma7.config.ts"
-  ],
+  "include": ["src/**/*"],
+  "exclude": ["dist", "node_modules", "prisma7.config.ts", "generated"],
   "compilerOptions": {
     // File Layout
     "rootDir": "./src",
@@ -29,8 +23,8 @@
     "declarationMap": true,
 
     // Stricter Typechecking Options
-    "noUncheckedIndexedAccess": true,
-    "exactOptionalPropertyTypes": true,
+    "noUncheckedIndexedAccess": false,
+    "exactOptionalPropertyTypes": false,
 
     // Style Options
     // "noImplicitReturns": true,
@@ -43,10 +37,12 @@
     // Recommended Options
     "strict": true,
     "jsx": "react-jsx",
-    "verbatimModuleSyntax": true,
+    "verbatimModuleSyntax": false,
     "isolatedModules": true,
     "noUncheckedSideEffectImports": true,
     "moduleDetection": "force",
     "skipLibCheck": true,
+    "noEmit": false,
+    "useDefineForClassFields": true
   }
 }

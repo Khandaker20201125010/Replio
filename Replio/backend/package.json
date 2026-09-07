@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
+    "dev": "nodemon dist/server.js",
     "build": "tsc",
     "start": "node dist/server.js",
     "postinstall": "prisma generate",
@@ -19,7 +19,8 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "@prisma/client": "^7.10.0",
+    "@prisma/client": "^6.0.0",
+    "axios": "^1.7.9",
     "bcryptjs": "^3.0.3",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
@@ -40,7 +41,7 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^26.4.1",
     "nodemon": "^3.1.14",
-    "prisma": "7.10.0",
+    "prisma": "^6.0.0",
     "ts-node-dev": "^2.0.0",
     "typescript": "^7.0.2"
   }

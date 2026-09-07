@@ -1,13 +1,238 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum CommentStatus {
+  PENDING
+  PROCESSED
+  REPLIED
+  IGNORED
+  ERROR
+}
+
+enum ReplyStatus {
+  PENDING
+  APPROVED
+  SENT
+  FAILED
+  SKIPPED
+}
+
+enum AISettingStatus {
+  ACTIVE
+  PAUSED
+}
+
+enum RuleAction {
+  REPLY_AI
+  REPLY_CUSTOM
+  IGNORE
+  HUMAN_REVIEW
+}
+
+enum RuleConditionType {
+  KEYWORD
+  PHRASE
+  SENTIMENT
+  LANGUAGE
+  SPAM_THRESHOLD
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String?
+  role         UserRole @default(USER)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  facebookPages   FacebookPage[]
+  aiSettings      AISettings?
+  replyRules      ReplyRule[]
+  analyticsEvents AnalyticsEvent[]
+
+  @@index([email])
+}
+
+model FacebookPage {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  pageId            String    @unique
+  pageName          String
+  pageAccessToken   String    @db.Text
+  accessTokenExpiry DateTime?
+  isConnected       Boolean   @default(true)
+
+  comments Comment[]
+  replies  Reply[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([pageId])
+}
+
+model Comment {
+  id             String       @id @default(cuid())
+  facebookPageId String
+  facebookPage   FacebookPage @relation(fields: [facebookPageId], references: [id], onDelete: Cascade)
+
+  commentId   String   @unique
+  postId      String
+  userId      String?
+  userName    String?
+  userMessage String   @db.Text
+  createdTime DateTime
+
+  status CommentStatus @default(PENDING)
+
+  aiIntent         String?
+  aiSentiment      String?
+  aiLanguage       String?
+  aiIsSpam         Boolean?
+  aiConfidence     Float?
+  aiRequiresReview Boolean?
+
+  replies Reply[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([facebookPageId])
+  @@index([commentId])
+  @@index([status])
+  @@index([createdTime])
+}
+
+model Reply {
+  id             String       @id @default(cuid())
+  commentId      String
+  comment        Comment      @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  facebookPageId String
+  facebookPage   FacebookPage @relation(fields: [facebookPageId], references: [id], onDelete: Cascade)
+
+  replyId        String? @unique
+  generatedReply String  @db.Text
+
+  status       ReplyStatus @default(PENDING)
+  errorMessage String?     @db.Text
+
+  aiProvider          String?
+  ruleId              String?
+  confidence          Float?
+  requiresHumanReview Boolean @default(false)
+  approvedBy          String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([commentId])
+  @@index([facebookPageId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model AISettings {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  status AISettingStatus @default(ACTIVE)
+
+  aiProvider          String @default("openai")
+  model               String @default("gpt-4")
+  confidenceThreshold Float  @default(0.7)
+
+  tone       String  @default("professional")
+  language   String  @default("en")
+  emojiUsage Boolean @default(true)
+  maxLength  Int     @default(500)
+
+  spamHandling      String  @default("ignore")
+  humanApprovalMode Boolean @default(false)
+  fallbackBehavior  String  @default("skip")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model ReplyRule {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name     String
+  enabled  Boolean @default(true)
+  priority Int     @default(0)
+
+  conditionType  RuleConditionType
+  conditionValue String            @db.Text
+
+  action      RuleAction
+  customReply String?    @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([enabled])
+  @@index([priority])
+}
+
+model AnalyticsEvent {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  eventType       String
+  eventTypeDetail String?
+
+  facebookPageId String?
+  commentId      String?
+  replyId        String?
+
+  metadata Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([eventType])
+  @@index([createdAt])
+}
+
+model OAuthToken {
+  id     String @id @default(cuid())
+  userId String
+
+  tokenType    String
+  accessToken  String    @db.Text
+  refreshToken String?   @db.Text
+  expiresAt    DateTime?
+
+  metadata Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([tokenType])
 }
