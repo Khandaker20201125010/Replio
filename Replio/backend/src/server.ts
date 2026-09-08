@@ -36,3 +36,4 @@ process.on("SIGINT", async () => {
 });
 
 startServer();
+//server
