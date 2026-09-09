@@ -7,8 +7,10 @@ export declare const env: {
     META_APP_ID?: string | undefined;
     META_APP_SECRET?: string | undefined;
     META_REDIRECT_URI: string;
-    META_WEBHOOK_VERIFY_TOKEN: string;
-    OPENAI_API_KEY?: string | undefined;
+    META_WEBHOOK_VERIFY_TOKEN?: string | undefined;
+    OPENROUTER_API_KEY?: string | undefined;
+    OPENROUTER_EMBEDDING_MODEL?: string | undefined;
+    OPENROUTER_LLM_MODEL?: string | undefined;
     USE_MOCK_AI: boolean;
     USE_MOCK_META: boolean;
     MOCK_MODE: boolean;

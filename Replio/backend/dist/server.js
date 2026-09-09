@@ -47,4 +47,5 @@ process.on("SIGINT", () => __awaiter(void 0, void 0, void 0, function* () {
     process.exit(0);
 }));
 startServer();
+//server
 //# sourceMappingURL=server.js.map

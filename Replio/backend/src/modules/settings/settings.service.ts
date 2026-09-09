@@ -4,8 +4,8 @@ import { logger } from "../../utils/logger";
 
 const DEFAULT_SETTINGS = {
   status: "ACTIVE" as const,
-  aiProvider: "openai",
-  model: "gpt-4",
+  aiProvider: "openrouter",
+  model: "google/gemma-4-31b-it:free",
   confidenceThreshold: 0.7,
   tone: "professional",
   language: "en",

@@ -14,19 +14,19 @@ exports.analyzeComment = analyzeComment;
 exports.generateReply = generateReply;
 exports.validateReply = validateReply;
 const mock_provider_1 = require("./mock.provider");
-const openai_provider_1 = require("./openai.provider");
+const openrouter_provider_1 = require("./openrouter.provider");
 const env_1 = require("../../config/env");
 const logger_1 = require("../../utils/logger");
 function getAIProvider(settings) {
-    const provider = settings.aiProvider || "openai";
-    // Use mock if OpenAI not configured or if explicitly requested
-    if (provider === "mock" || !env_1.env.OPENAI_API_KEY) {
+    const provider = settings.aiProvider || "openrouter";
+    // Use mock if OpenRouter not configured or if explicitly requested
+    if (provider === "mock" || !env_1.env.OPENROUTER_API_KEY) {
         logger_1.logger.debug("Using Mock AI provider");
         return new mock_provider_1.MockAIProvider();
     }
-    if (provider === "openai") {
-        logger_1.logger.debug("Using OpenAI provider");
-        return new openai_provider_1.OpenAIProvider();
+    if (provider === "openrouter") {
+        logger_1.logger.debug("Using OpenRouter provider");
+        return new openrouter_provider_1.OpenRouterProvider();
     }
     // Default to mock for safety
     logger_1.logger.warn(`Unknown AI provider: ${provider}, falling back to mock`);

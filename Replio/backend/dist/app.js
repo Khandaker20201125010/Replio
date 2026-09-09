@@ -33,6 +33,65 @@ app.use((0, cookie_parser_1.default)());
 // Rate limiting
 app.use("/api/auth", rate_limit_middleware_1.authLimiter);
 app.use("/api", rate_limit_middleware_1.apiLimiter);
+// Root route
+app.get("/", (req, res) => {
+    res.json({
+        success: true,
+        message: "Replio API Server",
+        version: "1.0.0",
+        environment: env_1.env.NODE_ENV,
+        endpoints: {
+            health: "/api/health",
+            auth: {
+                register: "POST /api/auth/register",
+                login: "POST /api/auth/login",
+                logout: "POST /api/auth/logout",
+                me: "GET /api/auth/me",
+            },
+            facebook: {
+                oauth: "GET /api/facebook/oauth",
+                callback: "GET /api/facebook/callback",
+                pages: "GET /api/facebook/pages",
+                connect: "POST /api/facebook/pages/connect",
+                disconnect: "DELETE /api/facebook/pages/:pageId",
+            },
+            comments: {
+                list: "GET /api/comments",
+                detail: "GET /api/comments/:commentId",
+                updateStatus: "PUT /api/comments/:commentId/status",
+            },
+            replies: {
+                list: "GET /api/replies",
+                detail: "GET /api/replies/:replyId",
+                approve: "POST /api/replies/:replyId/approve",
+                reject: "POST /api/replies/:replyId/reject",
+                retry: "POST /api/replies/:replyId/retry",
+            },
+            settings: {
+                get: "GET /api/settings",
+                update: "PUT /api/settings",
+                reset: "POST /api/settings/reset",
+            },
+            rules: {
+                list: "GET /api/rules",
+                create: "POST /api/rules",
+                update: "PUT /api/rules/:ruleId",
+                delete: "DELETE /api/rules/:ruleId",
+                reorder: "PUT /api/rules/reorder",
+            },
+            analytics: {
+                overview: "GET /api/analytics/overview",
+                comments: "GET /api/analytics/comments",
+                replies: "GET /api/analytics/replies",
+                events: "GET /api/analytics/events",
+            },
+            webhook: {
+                verify: "GET /api/webhook",
+                events: "POST /api/webhook",
+            },
+        },
+    });
+});
 // Health check
 app.get("/api/health", (req, res) => {
     res.json({

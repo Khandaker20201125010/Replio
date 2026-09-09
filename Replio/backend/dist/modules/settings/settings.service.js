@@ -19,8 +19,8 @@ const prisma_1 = __importDefault(require("../../config/prisma"));
 const logger_1 = require("../../utils/logger");
 const DEFAULT_SETTINGS = {
     status: "ACTIVE",
-    aiProvider: "openai",
-    model: "gpt-4",
+    aiProvider: "openrouter",
+    model: "google/gemma-4-31b-it:free",
     confidenceThreshold: 0.7,
     tone: "professional",
     language: "en",

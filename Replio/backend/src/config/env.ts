@@ -15,9 +15,11 @@ const envSchema = z.object({
   META_APP_ID: z.string().optional(),
   META_APP_SECRET: z.string().optional(),
   META_REDIRECT_URI: z.string().url(),
-  META_WEBHOOK_VERIFY_TOKEN: z.string().default("replio_webhook_token"),
+  META_WEBHOOK_VERIFY_TOKEN: z.string().optional(),
 
-  OPENAI_API_KEY: z.string().optional(),
+  OPENROUTER_API_KEY: z.string().optional(),
+  OPENROUTER_EMBEDDING_MODEL: z.string().optional(),
+  OPENROUTER_LLM_MODEL: z.string().optional(),
 
   USE_MOCK_AI: z
     .string()

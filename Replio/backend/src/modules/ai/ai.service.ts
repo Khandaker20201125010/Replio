@@ -1,5 +1,5 @@
 import { MockAIProvider } from "./mock.provider";
-import { OpenAIProvider } from "./openai.provider";
+import { OpenRouterProvider } from "./openrouter.provider";
 import { env } from "../../config/env";
 import { logger } from "../../utils/logger";
 import type {
@@ -9,17 +9,17 @@ import type {
 } from "./ai.provider";
 
 export function getAIProvider(settings: any): AIProvider {
-  const provider = settings.aiProvider || "openai";
+  const provider = settings.aiProvider || "openrouter";
 
-  // Use mock if OpenAI not configured or if explicitly requested
-  if (provider === "mock" || !env.OPENAI_API_KEY) {
+  // Use mock if OpenRouter not configured or if explicitly requested
+  if (provider === "mock" || !env.OPENROUTER_API_KEY) {
     logger.debug("Using Mock AI provider");
     return new MockAIProvider();
   }
 
-  if (provider === "openai") {
-    logger.debug("Using OpenAI provider");
-    return new OpenAIProvider();
+  if (provider === "openrouter") {
+    logger.debug("Using OpenRouter provider");
+    return new OpenRouterProvider();
   }
 
   // Default to mock for safety
