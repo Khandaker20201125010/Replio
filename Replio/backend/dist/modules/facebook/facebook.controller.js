@@ -40,7 +40,16 @@ function oauthCallbackController(req, res) {
                 return;
             }
             if (!code || typeof code !== "string") {
-                throw new Error("Invalid authorization code");
+                logger_1.logger.warn("OAuth callback called without authorization code");
+                res.status(400).json({
+                    success: false,
+                    error: {
+                        code: "VALIDATION_ERROR",
+                        message: "This endpoint should only be called by Facebook OAuth with an authorization code",
+                        info: "To test Facebook OAuth, access /api/facebook/oauth first to initiate the flow",
+                    },
+                });
+                return;
             }
             // Exchange code for user access token
             const userAccessToken = yield (0, facebook_service_1.exchangeCodeForToken)(code);

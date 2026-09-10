@@ -4,8 +4,8 @@ const express_1 = require("express");
 const facebook_controller_1 = require("./facebook.controller");
 const auth_middleware_1 = require("../../middleware/auth.middleware");
 const router = (0, express_1.Router)();
-// OAuth routes (some public, some protected)
-router.get("/oauth", auth_middleware_1.authenticate, facebook_controller_1.initiateOAuthController);
+// OAuth routes (public - Facebook handles the authentication)
+router.get("/oauth", facebook_controller_1.initiateOAuthController);
 router.get("/callback", facebook_controller_1.oauthCallbackController);
 // Protected page management routes
 router.post("/pages/connect", auth_middleware_1.authenticate, facebook_controller_1.connectPageController);

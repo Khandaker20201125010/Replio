@@ -11,8 +11,8 @@ import { authenticate } from "../../middleware/auth.middleware";
 
 const router = Router();
 
-// OAuth routes (some public, some protected)
-router.get("/oauth", authenticate, initiateOAuthController);
+// OAuth routes (public - Facebook handles the authentication)
+router.get("/oauth", initiateOAuthController);
 router.get("/callback", oauthCallbackController);
 
 // Protected page management routes
