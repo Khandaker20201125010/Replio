@@ -1,7 +1,7 @@
 import { Router } from "express";
 import {
-  registerController,
-  loginController,
+  facebookOAuthController,
+  facebookCallbackController,
   logoutController,
   getCurrentUserController,
   updateProfileController,
@@ -11,8 +11,8 @@ import { authenticate } from "../../middleware/auth.middleware";
 const router = Router();
 
 // Public routes
-router.post("/register", registerController);
-router.post("/login", loginController);
+router.get("/facebook", facebookOAuthController);
+router.get("/facebook/callback", facebookCallbackController);
 
 // Protected routes
 router.post("/logout", authenticate, logoutController);

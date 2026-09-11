@@ -1,5 +1,5 @@
 import prisma from "../../config/prisma";
-import { hashPassword, comparePassword } from "../../utils/password";
+
 import { generateToken } from "../../utils/jwt";
 import {
   ConflictError,
@@ -8,75 +8,53 @@ import {
 } from "../../utils/errors";
 import { logger } from "../../utils/logger";
 import type {
-  RegisterInput,
-  LoginInput,
   UpdateProfileInput,
 } from "./auth.validation";
 
-export async function register(data: RegisterInput) {
-  const { email, password, name } = data;
+export async function loginWithFacebook(profile: {
+  id: string;
+  name: string;
+  email: string;
+}) {
+  const { id: facebookId, name, email } = profile;
 
-  // Check if user already exists
-  const existingUser = await prisma.user.findUnique({
-    where: { email },
-  });
-
-  if (existingUser) {
-    throw new ConflictError("User with this email already exists");
-  }
-
-  // Hash password
-  const passwordHash = await hashPassword(password);
-
-  // Create user
-  const user = await prisma.user.create({
-    data: {
-      email,
-      passwordHash,
-      name: name || null,
-      role: "USER",
+  // Find user by facebookId or email
+  let user = await prisma.user.findFirst({
+    where: {
+      OR: [
+        { facebookId },
+        { email }
+      ]
     },
   });
 
-  // Generate token
-  const token = generateToken(user.id, user.email);
-
-  logger.info({ userId: user.id, email }, "User registered successfully");
-
-  return {
-    user: {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      role: user.role,
-    },
-    token,
-  };
-}
-
-export async function login(data: LoginInput) {
-  const { email, password } = data;
-
-  // Find user
-  const user = await prisma.user.findUnique({
-    where: { email },
-  });
-
-  if (!user) {
-    throw new AuthenticationError("Invalid credentials");
-  }
-
-  // Verify password
-  const isValid = await comparePassword(password, user.passwordHash);
-
-  if (!isValid) {
-    throw new AuthenticationError("Invalid credentials");
+  if (user) {
+    // If user exists but doesn't have facebookId (e.g. from previous email signup), link it
+    if (!user.facebookId || user.name !== name) {
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          facebookId,
+          ...(name && !user.name ? { name } : {})
+        }
+      });
+    }
+  } else {
+    // Create new user
+    user = await prisma.user.create({
+      data: {
+        email,
+        facebookId,
+        name,
+        role: "USER",
+      },
+    });
   }
 
   // Generate token
   const token = generateToken(user.id, user.email);
 
-  logger.info({ userId: user.id, email }, "User logged in successfully");
+  logger.info({ userId: user.id, email }, "User logged in with Facebook successfully");
 
   return {
     user: {

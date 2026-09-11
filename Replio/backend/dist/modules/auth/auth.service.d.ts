@@ -1,14 +1,9 @@
-import type { RegisterInput, LoginInput, UpdateProfileInput } from "./auth.validation";
-export declare function register(data: RegisterInput): Promise<{
-    user: {
-        id: string;
-        email: string;
-        name: string | null;
-        role: import(".prisma/client").$Enums.UserRole;
-    };
-    token: string;
-}>;
-export declare function login(data: LoginInput): Promise<{
+import type { UpdateProfileInput } from "./auth.validation";
+export declare function loginWithFacebook(profile: {
+    id: string;
+    name: string;
+    email: string;
+}): Promise<{
     user: {
         id: string;
         email: string;

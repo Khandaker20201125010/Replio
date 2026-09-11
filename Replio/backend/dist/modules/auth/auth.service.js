@@ -12,68 +12,48 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.register = register;
-exports.login = login;
+exports.loginWithFacebook = loginWithFacebook;
 exports.getCurrentUser = getCurrentUser;
 exports.updateProfile = updateProfile;
 const prisma_1 = __importDefault(require("../../config/prisma"));
-const password_1 = require("../../utils/password");
 const jwt_1 = require("../../utils/jwt");
 const errors_1 = require("../../utils/errors");
 const logger_1 = require("../../utils/logger");
-function register(data) {
+function loginWithFacebook(profile) {
     return __awaiter(this, void 0, void 0, function* () {
-        const { email, password, name } = data;
-        // Check if user already exists
-        const existingUser = yield prisma_1.default.user.findUnique({
-            where: { email },
-        });
-        if (existingUser) {
-            throw new errors_1.ConflictError("User with this email already exists");
-        }
-        // Hash password
-        const passwordHash = yield (0, password_1.hashPassword)(password);
-        // Create user
-        const user = yield prisma_1.default.user.create({
-            data: {
-                email,
-                passwordHash,
-                name: name || null,
-                role: "USER",
+        const { id: facebookId, name, email } = profile;
+        // Find user by facebookId or email
+        let user = yield prisma_1.default.user.findFirst({
+            where: {
+                OR: [
+                    { facebookId },
+                    { email }
+                ]
             },
         });
-        // Generate token
-        const token = (0, jwt_1.generateToken)(user.id, user.email);
-        logger_1.logger.info({ userId: user.id, email }, "User registered successfully");
-        return {
-            user: {
-                id: user.id,
-                email: user.email,
-                name: user.name,
-                role: user.role,
-            },
-            token,
-        };
-    });
-}
-function login(data) {
-    return __awaiter(this, void 0, void 0, function* () {
-        const { email, password } = data;
-        // Find user
-        const user = yield prisma_1.default.user.findUnique({
-            where: { email },
-        });
-        if (!user) {
-            throw new errors_1.AuthenticationError("Invalid credentials");
+        if (user) {
+            // If user exists but doesn't have facebookId (e.g. from previous email signup), link it
+            if (!user.facebookId || user.name !== name) {
+                user = yield prisma_1.default.user.update({
+                    where: { id: user.id },
+                    data: Object.assign({ facebookId }, (name && !user.name ? { name } : {}))
+                });
+            }
         }
-        // Verify password
-        const isValid = yield (0, password_1.comparePassword)(password, user.passwordHash);
-        if (!isValid) {
-            throw new errors_1.AuthenticationError("Invalid credentials");
+        else {
+            // Create new user
+            user = yield prisma_1.default.user.create({
+                data: {
+                    email,
+                    facebookId,
+                    name,
+                    role: "USER",
+                },
+            });
         }
         // Generate token
         const token = (0, jwt_1.generateToken)(user.id, user.email);
-        logger_1.logger.info({ userId: user.id, email }, "User logged in successfully");
+        logger_1.logger.info({ userId: user.id, email }, "User logged in with Facebook successfully");
         return {
             user: {
                 id: user.id,
