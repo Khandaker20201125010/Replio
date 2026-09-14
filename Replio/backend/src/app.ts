@@ -16,6 +16,9 @@ import analyticsRoutes from "./modules/analytics/analytics.route";
 
 const app = express();
 
+// Trust proxy for Vercel (required for HTTPS detection behind proxy)
+app.set("trust proxy", true);
+
 // Security middleware
 app.use(helmet());
 
@@ -24,6 +27,8 @@ app.use(
   cors({
     origin: env.FRONTEND_URL,
     credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   }),
 );
 

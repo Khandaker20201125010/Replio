@@ -7,9 +7,7 @@ import {
   NotFoundError,
 } from "../../utils/errors";
 import { logger } from "../../utils/logger";
-import type {
-  UpdateProfileInput,
-} from "./auth.validation";
+import type { UpdateProfileInput } from "./auth.validation";
 
 export async function loginWithFacebook(profile: {
   id: string;
@@ -21,10 +19,7 @@ export async function loginWithFacebook(profile: {
   // Find user by facebookId or email
   let user = await prisma.user.findFirst({
     where: {
-      OR: [
-        { facebookId },
-        { email }
-      ]
+      OR: [{ facebookId }, { email }],
     },
   });
 
@@ -35,8 +30,8 @@ export async function loginWithFacebook(profile: {
         where: { id: user.id },
         data: {
           facebookId,
-          ...(name && !user.name ? { name } : {})
-        }
+          ...(name && !user.name ? { name } : {}),
+        },
       });
     }
   } else {
@@ -54,7 +49,66 @@ export async function loginWithFacebook(profile: {
   // Generate token
   const token = generateToken(user.id, user.email);
 
-  logger.info({ userId: user.id, email }, "User logged in with Facebook successfully");
+  logger.info(
+    { userId: user.id, email },
+    "User logged in with Facebook successfully",
+  );
+
+  return {
+    user: {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+    },
+    token,
+  };
+}
+
+export async function loginWithGoogle(profile: {
+  id: string;
+  name: string;
+  email: string;
+}) {
+  const { id: googleId, name, email } = profile;
+
+  // Find user by googleId or email
+  let user = await prisma.user.findFirst({
+    where: {
+      OR: [{ googleId }, { email }],
+    },
+  });
+
+  if (user) {
+    // If user exists but doesn't have googleId (e.g. from previous email signup), link it
+    if (!user.googleId || user.name !== name) {
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          googleId,
+          ...(name && !user.name ? { name } : {}),
+        },
+      });
+    }
+  } else {
+    // Create new user
+    user = await prisma.user.create({
+      data: {
+        email,
+        googleId,
+        name,
+        role: "USER",
+      },
+    });
+  }
+
+  // Generate token
+  const token = generateToken(user.id, user.email);
+
+  logger.info(
+    { userId: user.id, email },
+    "User logged in with Google successfully",
+  );
 
   return {
     user: {

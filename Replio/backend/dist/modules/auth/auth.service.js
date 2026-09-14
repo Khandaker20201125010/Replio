@@ -13,6 +13,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.loginWithFacebook = loginWithFacebook;
+exports.loginWithGoogle = loginWithGoogle;
 exports.getCurrentUser = getCurrentUser;
 exports.updateProfile = updateProfile;
 const prisma_1 = __importDefault(require("../../config/prisma"));
@@ -25,10 +26,7 @@ function loginWithFacebook(profile) {
         // Find user by facebookId or email
         let user = yield prisma_1.default.user.findFirst({
             where: {
-                OR: [
-                    { facebookId },
-                    { email }
-                ]
+                OR: [{ facebookId }, { email }],
             },
         });
         if (user) {
@@ -36,7 +34,7 @@ function loginWithFacebook(profile) {
             if (!user.facebookId || user.name !== name) {
                 user = yield prisma_1.default.user.update({
                     where: { id: user.id },
-                    data: Object.assign({ facebookId }, (name && !user.name ? { name } : {}))
+                    data: Object.assign({ facebookId }, (name && !user.name ? { name } : {})),
                 });
             }
         }
@@ -54,6 +52,49 @@ function loginWithFacebook(profile) {
         // Generate token
         const token = (0, jwt_1.generateToken)(user.id, user.email);
         logger_1.logger.info({ userId: user.id, email }, "User logged in with Facebook successfully");
+        return {
+            user: {
+                id: user.id,
+                email: user.email,
+                name: user.name,
+                role: user.role,
+            },
+            token,
+        };
+    });
+}
+function loginWithGoogle(profile) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const { id: googleId, name, email } = profile;
+        // Find user by googleId or email
+        let user = yield prisma_1.default.user.findFirst({
+            where: {
+                OR: [{ googleId }, { email }],
+            },
+        });
+        if (user) {
+            // If user exists but doesn't have googleId (e.g. from previous email signup), link it
+            if (!user.googleId || user.name !== name) {
+                user = yield prisma_1.default.user.update({
+                    where: { id: user.id },
+                    data: Object.assign({ googleId }, (name && !user.name ? { name } : {})),
+                });
+            }
+        }
+        else {
+            // Create new user
+            user = yield prisma_1.default.user.create({
+                data: {
+                    email,
+                    googleId,
+                    name,
+                    role: "USER",
+                },
+            });
+        }
+        // Generate token
+        const token = (0, jwt_1.generateToken)(user.id, user.email);
+        logger_1.logger.info({ userId: user.id, email }, "User logged in with Google successfully");
         return {
             user: {
                 id: user.id,

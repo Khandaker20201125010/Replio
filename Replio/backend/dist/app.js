@@ -19,12 +19,16 @@ const settings_route_1 = __importDefault(require("./modules/settings/settings.ro
 const rules_route_1 = __importDefault(require("./modules/rules/rules.route"));
 const analytics_route_1 = __importDefault(require("./modules/analytics/analytics.route"));
 const app = (0, express_1.default)();
+// Trust proxy for Vercel (required for HTTPS detection behind proxy)
+app.set("trust proxy", true);
 // Security middleware
 app.use((0, helmet_1.default)());
 // CORS
 app.use((0, cors_1.default)({
     origin: env_1.env.FRONTEND_URL,
     credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
 }));
 // Body parsing
 app.use(express_1.default.json());

@@ -17,6 +17,10 @@ const envSchema = z.object({
   META_REDIRECT_URI: z.string().url(),
   META_WEBHOOK_VERIFY_TOKEN: z.string().optional(),
 
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
+  GOOGLE_REDIRECT_URI: z.string().url(),
+
   OPENROUTER_API_KEY: z.string().optional(),
   OPENROUTER_EMBEDDING_MODEL: z.string().optional(),
   OPENROUTER_LLM_MODEL: z.string().optional(),
