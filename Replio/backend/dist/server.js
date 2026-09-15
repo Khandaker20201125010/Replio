@@ -46,11 +46,6 @@ process.on("SIGINT", () => __awaiter(void 0, void 0, void 0, function* () {
     yield prisma_1.default.$disconnect();
     process.exit(0);
 }));
-// Start server only if not running in Vercel
-if (env_1.env.NODE_ENV !== "production" || process.env.VERCEL !== "1") {
-    startServer();
-}
-// Export for Vercel
-exports.default = app_1.default;
+startServer();
 //server
 //# sourceMappingURL=server.js.map
