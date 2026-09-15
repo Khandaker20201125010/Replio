@@ -17,7 +17,7 @@ const app_1 = __importDefault(require("./app"));
 const env_1 = require("./config/env");
 const logger_1 = require("./utils/logger");
 const prisma_1 = __importDefault(require("./config/prisma"));
-const PORT = parseInt(env_1.env.PORT, 10);
+const PORT = parseInt(env_1.env.PORT, 10) || 3000;
 function startServer() {
     return __awaiter(this, void 0, void 0, function* () {
         try {
@@ -46,6 +46,11 @@ process.on("SIGINT", () => __awaiter(void 0, void 0, void 0, function* () {
     yield prisma_1.default.$disconnect();
     process.exit(0);
 }));
-startServer();
+// Start server only if not running in Vercel
+if (env_1.env.NODE_ENV !== "production" || process.env.VERCEL !== "1") {
+    startServer();
+}
+// Export for Vercel
+exports.default = app_1.default;
 //server
 //# sourceMappingURL=server.js.map

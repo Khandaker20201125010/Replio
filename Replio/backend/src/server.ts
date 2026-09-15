@@ -4,7 +4,7 @@ import { env } from "./config/env";
 import { logger } from "./utils/logger";
 import prisma from "./config/prisma";
 
-const PORT = parseInt(env.PORT, 10);
+const PORT = parseInt(env.PORT, 10) || 3000;
 
 async function startServer() {
   try {
@@ -35,5 +35,11 @@ process.on("SIGINT", async () => {
   process.exit(0);
 });
 
-startServer();
+// Start server only if not running in Vercel
+if (env.NODE_ENV !== "production" || process.env.VERCEL !== "1") {
+  startServer();
+}
+
+// Export for Vercel
+export default app;
 //server
