@@ -25,7 +25,12 @@ app.use(helmet());
 // CORS
 app.use(
   cors({
-    origin: [env.FRONTEND_URL, "https://replio-frontend-livid.vercel.app"],
+    origin: [
+      env.FRONTEND_URL,
+      "https://replio-frontend-livid.vercel.app",
+      "https://replio-frontend.vercel.app",
+      "http://localhost:3000",
+    ],
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
@@ -126,3 +131,6 @@ app.use("/api/analytics", analyticsRoutes);
 app.use(errorHandler);
 
 export default app;
+
+// For Vercel
+export const handler = app;

@@ -12,6 +12,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.handler = void 0;
 require("dotenv/config");
 const app_1 = __importDefault(require("./app"));
 const env_1 = require("./config/env");
@@ -46,6 +47,12 @@ process.on("SIGINT", () => __awaiter(void 0, void 0, void 0, function* () {
     yield prisma_1.default.$disconnect();
     process.exit(0);
 }));
-startServer();
+// Only start server if not in Vercel environment
+if (process.env.VERCEL !== "1") {
+    startServer();
+}
+// Export for Vercel
+exports.default = app_1.default;
+exports.handler = app_1.default;
 //server
 //# sourceMappingURL=server.js.map

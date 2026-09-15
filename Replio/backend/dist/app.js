@@ -3,6 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.handler = void 0;
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
 const helmet_1 = __importDefault(require("helmet"));
@@ -25,7 +26,12 @@ app.set("trust proxy", true);
 app.use((0, helmet_1.default)());
 // CORS
 app.use((0, cors_1.default)({
-    origin: [env_1.env.FRONTEND_URL, "https://replio-frontend-livid.vercel.app"],
+    origin: [
+        env_1.env.FRONTEND_URL,
+        "https://replio-frontend-livid.vercel.app",
+        "https://replio-frontend.vercel.app",
+        "http://localhost:3000",
+    ],
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
@@ -118,4 +124,6 @@ app.use("/api/analytics", analytics_route_1.default);
 // Error handling (must be last)
 app.use(error_middleware_1.errorHandler);
 exports.default = app;
+// For Vercel
+exports.handler = app;
 //# sourceMappingURL=app.js.map

@@ -35,5 +35,12 @@ process.on("SIGINT", async () => {
   process.exit(0);
 });
 
-startServer();
+// Only start server if not in Vercel environment
+if (process.env.VERCEL !== "1") {
+  startServer();
+}
+
+// Export for Vercel
+export default app;
+export const handler = app;
 //server
