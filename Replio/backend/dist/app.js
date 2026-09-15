@@ -26,7 +26,7 @@ app.set("trust proxy", true);
 app.use((0, helmet_1.default)());
 // CORS
 app.use((0, cors_1.default)({
-    origin: env_1.env.FRONTEND_URL,
+    origin: [env_1.env.FRONTEND_URL, "https://replio-frontend-livid.vercel.app"],
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
