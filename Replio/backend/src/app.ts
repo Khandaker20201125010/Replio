@@ -126,3 +126,6 @@ app.use("/api/analytics", analyticsRoutes);
 app.use(errorHandler);
 
 export default app;
+
+// For Vercel serverless deployment
+export const handler = app;
