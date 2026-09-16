@@ -7,13 +7,6 @@ const logger_1 = require("../utils/logger");
 function authenticate(req, res, next) {
     try {
         const token = req.cookies.auth_token;
-        logger_1.logger.debug({
-            hasToken: !!token,
-            cookies: Object.keys(req.cookies),
-            path: req.path,
-            origin: req.headers.origin,
-            referer: req.headers.referer,
-        }, "Authentication attempt");
         if (!token) {
             throw new errors_1.AuthenticationError("No authentication token provided");
         }

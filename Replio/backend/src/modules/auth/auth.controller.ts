@@ -16,11 +16,11 @@ export async function logoutController(
   res: Response,
 ): Promise<void> {
   try {
-    // Clear HTTP-only cookie with same options as when set
+    // Clear HTTP-only cookie
     res.clearCookie("auth_token", {
       httpOnly: true,
-      secure: true,
-      sameSite: "none",
+      secure: env.NODE_ENV === "production",
+      sameSite: env.NODE_ENV === "production" ? "none" : "lax",
       path: "/",
     });
 
@@ -140,25 +140,10 @@ export async function facebookCallbackController(
     });
 
     // 4. Set cookie and redirect
-    logger.info(
-      {
-        token: token.substring(0, 20) + "...",
-        frontendUrl: env.FRONTEND_URL,
-        cookieOptions: {
-          httpOnly: true,
-          secure: true,
-          sameSite: "none",
-          maxAge: 7 * 24 * 60 * 60 * 1000,
-          path: "/",
-        },
-      },
-      "Setting auth cookie",
-    );
-
     res.cookie("auth_token", token, {
       httpOnly: true,
-      secure: true,
-      sameSite: "none",
+      secure: env.NODE_ENV === "production",
+      sameSite: env.NODE_ENV === "production" ? "none" : "lax",
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
       path: "/",
     });
@@ -249,25 +234,10 @@ export async function googleCallbackController(
     });
 
     // 4. Set cookie and redirect
-    logger.info(
-      {
-        token: token.substring(0, 20) + "...",
-        frontendUrl: env.FRONTEND_URL,
-        cookieOptions: {
-          httpOnly: true,
-          secure: true,
-          sameSite: "none",
-          maxAge: 7 * 24 * 60 * 60 * 1000,
-          path: "/",
-        },
-      },
-      "Setting auth cookie",
-    );
-
     res.cookie("auth_token", token, {
       httpOnly: true,
-      secure: true,
-      sameSite: "none",
+      secure: env.NODE_ENV === "production",
+      sameSite: env.NODE_ENV === "production" ? "none" : "lax",
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
       path: "/",
     });

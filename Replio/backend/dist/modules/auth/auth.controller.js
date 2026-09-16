@@ -28,11 +28,11 @@ const errors_1 = require("../../utils/errors");
 function logoutController(req, res) {
     return __awaiter(this, void 0, void 0, function* () {
         try {
-            // Clear HTTP-only cookie with same options as when set
+            // Clear HTTP-only cookie
             res.clearCookie("auth_token", {
                 httpOnly: true,
-                secure: true,
-                sameSite: "none",
+                secure: env_1.env.NODE_ENV === "production",
+                sameSite: env_1.env.NODE_ENV === "production" ? "none" : "lax",
                 path: "/",
             });
             res.status(200).json({
@@ -129,21 +129,10 @@ function facebookCallbackController(req, res) {
                 email: profileResponse.data.email,
             });
             // 4. Set cookie and redirect
-            logger_1.logger.info({
-                token: token.substring(0, 20) + "...",
-                frontendUrl: env_1.env.FRONTEND_URL,
-                cookieOptions: {
-                    httpOnly: true,
-                    secure: true,
-                    sameSite: "none",
-                    maxAge: 7 * 24 * 60 * 60 * 1000,
-                    path: "/",
-                },
-            }, "Setting auth cookie");
             res.cookie("auth_token", token, {
                 httpOnly: true,
-                secure: true,
-                sameSite: "none",
+                secure: env_1.env.NODE_ENV === "production",
+                sameSite: env_1.env.NODE_ENV === "production" ? "none" : "lax",
                 maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
                 path: "/",
             });
@@ -217,21 +206,10 @@ function googleCallbackController(req, res) {
                 email: profileResponse.data.email,
             });
             // 4. Set cookie and redirect
-            logger_1.logger.info({
-                token: token.substring(0, 20) + "...",
-                frontendUrl: env_1.env.FRONTEND_URL,
-                cookieOptions: {
-                    httpOnly: true,
-                    secure: true,
-                    sameSite: "none",
-                    maxAge: 7 * 24 * 60 * 60 * 1000,
-                    path: "/",
-                },
-            }, "Setting auth cookie");
             res.cookie("auth_token", token, {
                 httpOnly: true,
-                secure: true,
-                sameSite: "none",
+                secure: env_1.env.NODE_ENV === "production",
+                sameSite: env_1.env.NODE_ENV === "production" ? "none" : "lax",
                 maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
                 path: "/",
             });
