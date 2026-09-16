@@ -16,8 +16,11 @@ export async function logoutController(
   res: Response,
 ): Promise<void> {
   try {
-    // Clear HTTP-only cookie
+    // Clear HTTP-only cookie with same options as when set
     res.clearCookie("auth_token", {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
       path: "/",
     });
 
@@ -139,8 +142,8 @@ export async function facebookCallbackController(
     // 4. Set cookie and redirect
     res.cookie("auth_token", token, {
       httpOnly: true,
-      secure: env.NODE_ENV === "production",
-      sameSite: env.NODE_ENV === "production" ? "none" : "lax",
+      secure: true, // Always use secure in production for cross-domain
+      sameSite: "none", // Required for cross-domain cookies
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
       path: "/",
     });
@@ -233,8 +236,8 @@ export async function googleCallbackController(
     // 4. Set cookie and redirect
     res.cookie("auth_token", token, {
       httpOnly: true,
-      secure: env.NODE_ENV === "production",
-      sameSite: env.NODE_ENV === "production" ? "none" : "lax",
+      secure: true, // Always use secure in production for cross-domain
+      sameSite: "none", // Required for cross-domain cookies
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
       path: "/",
     });
