@@ -129,10 +129,21 @@ function facebookCallbackController(req, res) {
                 email: profileResponse.data.email,
             });
             // 4. Set cookie and redirect
+            logger_1.logger.info({
+                token: token.substring(0, 20) + "...",
+                frontendUrl: env_1.env.FRONTEND_URL,
+                cookieOptions: {
+                    httpOnly: true,
+                    secure: true,
+                    sameSite: "none",
+                    maxAge: 7 * 24 * 60 * 60 * 1000,
+                    path: "/",
+                },
+            }, "Setting auth cookie");
             res.cookie("auth_token", token, {
                 httpOnly: true,
-                secure: true, // Always use secure in production for cross-domain
-                sameSite: "none", // Required for cross-domain cookies
+                secure: true,
+                sameSite: "none",
                 maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
                 path: "/",
             });
@@ -206,10 +217,21 @@ function googleCallbackController(req, res) {
                 email: profileResponse.data.email,
             });
             // 4. Set cookie and redirect
+            logger_1.logger.info({
+                token: token.substring(0, 20) + "...",
+                frontendUrl: env_1.env.FRONTEND_URL,
+                cookieOptions: {
+                    httpOnly: true,
+                    secure: true,
+                    sameSite: "none",
+                    maxAge: 7 * 24 * 60 * 60 * 1000,
+                    path: "/",
+                },
+            }, "Setting auth cookie");
             res.cookie("auth_token", token, {
                 httpOnly: true,
-                secure: true, // Always use secure in production for cross-domain
-                sameSite: "none", // Required for cross-domain cookies
+                secure: true,
+                sameSite: "none",
                 maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
                 path: "/",
             });

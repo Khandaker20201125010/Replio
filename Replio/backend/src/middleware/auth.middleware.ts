@@ -20,6 +20,17 @@ export function authenticate(
   try {
     const token = req.cookies.auth_token;
 
+    logger.debug(
+      {
+        hasToken: !!token,
+        cookies: Object.keys(req.cookies),
+        path: req.path,
+        origin: req.headers.origin,
+        referer: req.headers.referer,
+      },
+      "Authentication attempt",
+    );
+
     if (!token) {
       throw new AuthenticationError("No authentication token provided");
     }
