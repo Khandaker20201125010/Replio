@@ -28,11 +28,11 @@ const errors_1 = require("../../utils/errors");
 function logoutController(req, res) {
     return __awaiter(this, void 0, void 0, function* () {
         try {
-            // Clear HTTP-only cookie
+            // Clear HTTP-only cookie with same settings as when set
             res.clearCookie("auth_token", {
                 httpOnly: true,
-                secure: env_1.env.NODE_ENV === "production",
-                sameSite: env_1.env.NODE_ENV === "production" ? "none" : "lax",
+                secure: true,
+                sameSite: "none",
                 path: "/",
             });
             res.status(200).json({
@@ -131,8 +131,8 @@ function facebookCallbackController(req, res) {
             // 4. Set cookie and redirect
             res.cookie("auth_token", token, {
                 httpOnly: true,
-                secure: env_1.env.NODE_ENV === "production",
-                sameSite: env_1.env.NODE_ENV === "production" ? "none" : "lax",
+                secure: true, // Always secure for cross-domain
+                sameSite: "none", // Required for cross-domain cookies
                 maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
                 path: "/",
             });
@@ -208,8 +208,8 @@ function googleCallbackController(req, res) {
             // 4. Set cookie and redirect
             res.cookie("auth_token", token, {
                 httpOnly: true,
-                secure: env_1.env.NODE_ENV === "production",
-                sameSite: env_1.env.NODE_ENV === "production" ? "none" : "lax",
+                secure: true, // Always secure for cross-domain
+                sameSite: "none", // Required for cross-domain cookies
                 maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
                 path: "/",
             });
