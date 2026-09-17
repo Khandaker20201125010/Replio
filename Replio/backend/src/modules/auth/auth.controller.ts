@@ -181,6 +181,8 @@ export async function googleCallbackController(
   try {
     const { code, error } = req.query;
 
+    logger.info({ code: !!code, error }, "Google callback received");
+
     if (error) {
       logger.error({ error }, "Google login callback error");
       res.redirect(`${env.FRONTEND_URL}/login?error=oauth_failed`);
@@ -188,12 +190,15 @@ export async function googleCallbackController(
     }
 
     if (!code || typeof code !== "string") {
+      logger.error({ code }, "Invalid Google authorization code");
       res.redirect(`${env.FRONTEND_URL}/login?error=invalid_code`);
       return;
     }
 
     const backendUrl = `${req.protocol}://${req.get("host")}`;
     const redirectUri = `${backendUrl}/api/auth/google/callback`;
+
+    logger.info({ redirectUri }, "Exchanging Google code for token");
 
     // 1. Exchange code for access token
     const tokenResponse = await axios
@@ -204,11 +209,20 @@ export async function googleCallbackController(
         code,
         grant_type: "authorization_code",
       })
-      .catch(() => null);
+      .catch((err) => {
+        logger.error({ error: err.message }, "Google token exchange failed");
+        return null;
+      });
 
     if (!tokenResponse?.data?.access_token) {
+      logger.error(
+        { response: tokenResponse?.data },
+        "No access token in response",
+      );
       throw new ExternalAPIError("Failed to get Google access token", "google");
     }
+
+    logger.info("Got Google access token successfully");
 
     // 2. Get user profile
     const profileResponse = await axios
@@ -217,14 +231,26 @@ export async function googleCallbackController(
           Authorization: `Bearer ${tokenResponse.data.access_token}`,
         },
       })
-      .catch(() => null);
+      .catch((err) => {
+        logger.error({ error: err.message }, "Google profile fetch failed");
+        return null;
+      });
 
     if (!profileResponse?.data?.id || !profileResponse?.data?.email) {
+      logger.error(
+        { profile: profileResponse?.data },
+        "Invalid Google profile data",
+      );
       throw new ExternalAPIError(
         "Failed to get Google profile or email is missing",
         "google",
       );
     }
+
+    logger.info(
+      { email: profileResponse.data.email },
+      "Got Google profile successfully",
+    );
 
     // 3. Login or register user
     const { user, token } = await loginWithGoogle({
@@ -232,6 +258,8 @@ export async function googleCallbackController(
       name: profileResponse.data.name,
       email: profileResponse.data.email,
     });
+
+    logger.info({ userId: user.id }, "User logged in with Google successfully");
 
     // 4. Set cookie and redirect
     res.cookie("auth_token", token, {
@@ -241,6 +269,8 @@ export async function googleCallbackController(
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
       path: "/",
     });
+
+    logger.info({ frontendUrl: env.FRONTEND_URL }, "Redirecting to dashboard");
     res.redirect(`${env.FRONTEND_URL}/dashboard`);
   } catch (error) {
     logger.error({ error }, "Google login callback failed");

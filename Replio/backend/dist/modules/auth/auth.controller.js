@@ -164,17 +164,20 @@ function googleCallbackController(req, res) {
         var _a, _b, _c;
         try {
             const { code, error } = req.query;
+            logger_1.logger.info({ code: !!code, error }, "Google callback received");
             if (error) {
                 logger_1.logger.error({ error }, "Google login callback error");
                 res.redirect(`${env_1.env.FRONTEND_URL}/login?error=oauth_failed`);
                 return;
             }
             if (!code || typeof code !== "string") {
+                logger_1.logger.error({ code }, "Invalid Google authorization code");
                 res.redirect(`${env_1.env.FRONTEND_URL}/login?error=invalid_code`);
                 return;
             }
             const backendUrl = `${req.protocol}://${req.get("host")}`;
             const redirectUri = `${backendUrl}/api/auth/google/callback`;
+            logger_1.logger.info({ redirectUri }, "Exchanging Google code for token");
             // 1. Exchange code for access token
             const tokenResponse = yield axios_1.default
                 .post("https://oauth2.googleapis.com/token", {
@@ -184,10 +187,15 @@ function googleCallbackController(req, res) {
                 code,
                 grant_type: "authorization_code",
             })
-                .catch(() => null);
+                .catch((err) => {
+                logger_1.logger.error({ error: err.message }, "Google token exchange failed");
+                return null;
+            });
             if (!((_a = tokenResponse === null || tokenResponse === void 0 ? void 0 : tokenResponse.data) === null || _a === void 0 ? void 0 : _a.access_token)) {
+                logger_1.logger.error({ response: tokenResponse === null || tokenResponse === void 0 ? void 0 : tokenResponse.data }, "No access token in response");
                 throw new errors_1.ExternalAPIError("Failed to get Google access token", "google");
             }
+            logger_1.logger.info("Got Google access token successfully");
             // 2. Get user profile
             const profileResponse = yield axios_1.default
                 .get("https://www.googleapis.com/oauth2/v2/userinfo", {
@@ -195,16 +203,22 @@ function googleCallbackController(req, res) {
                     Authorization: `Bearer ${tokenResponse.data.access_token}`,
                 },
             })
-                .catch(() => null);
+                .catch((err) => {
+                logger_1.logger.error({ error: err.message }, "Google profile fetch failed");
+                return null;
+            });
             if (!((_b = profileResponse === null || profileResponse === void 0 ? void 0 : profileResponse.data) === null || _b === void 0 ? void 0 : _b.id) || !((_c = profileResponse === null || profileResponse === void 0 ? void 0 : profileResponse.data) === null || _c === void 0 ? void 0 : _c.email)) {
+                logger_1.logger.error({ profile: profileResponse === null || profileResponse === void 0 ? void 0 : profileResponse.data }, "Invalid Google profile data");
                 throw new errors_1.ExternalAPIError("Failed to get Google profile or email is missing", "google");
             }
+            logger_1.logger.info({ email: profileResponse.data.email }, "Got Google profile successfully");
             // 3. Login or register user
             const { user, token } = yield (0, auth_service_1.loginWithGoogle)({
                 id: profileResponse.data.id,
                 name: profileResponse.data.name,
                 email: profileResponse.data.email,
             });
+            logger_1.logger.info({ userId: user.id }, "User logged in with Google successfully");
             // 4. Set cookie and redirect
             res.cookie("auth_token", token, {
                 httpOnly: true,
@@ -213,6 +227,7 @@ function googleCallbackController(req, res) {
                 maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
                 path: "/",
             });
+            logger_1.logger.info({ frontendUrl: env_1.env.FRONTEND_URL }, "Redirecting to dashboard");
             res.redirect(`${env_1.env.FRONTEND_URL}/dashboard`);
         }
         catch (error) {
