@@ -54,19 +54,45 @@ export async function getCurrentUserController(
   }
 }
 
+function getValidFrontendUrl(stateQuery: unknown): string {
+  if (typeof stateQuery === "string" && stateQuery) {
+    try {
+      const parsedUrl = new URL(stateQuery);
+      const allowedOrigins = [
+        env.FRONTEND_URL,
+        "https://replio-frontend-livid.vercel.app",
+        "https://replio-frontend.vercel.app",
+        "http://localhost:3000",
+      ];
+      if (
+        allowedOrigins.includes(parsedUrl.origin) ||
+        parsedUrl.hostname.endsWith(".vercel.app") ||
+        parsedUrl.hostname === "localhost" ||
+        parsedUrl.hostname === "127.0.0.1"
+      ) {
+        return parsedUrl.origin;
+      }
+    } catch {
+      // Fall through to default
+    }
+  }
+  return env.FRONTEND_URL;
+}
+
 export async function facebookOAuthController(
   req: Request,
   res: Response,
 ): Promise<void> {
   try {
     const backendUrl = `${req.protocol}://${req.get("host")}`;
-    const redirectUri = `${backendUrl}/api/auth/facebook/callback`; // We'll handle this in backend at /api/auth/facebook/callback
+    const redirectUri =
+      env.META_REDIRECT_URI || `${backendUrl}/api/auth/facebook/callback`;
     const scope = "public_profile,email";
+    const state = typeof req.query.state === "string" ? req.query.state : "";
 
-    // We reuse the META_APP_ID but with a different redirect URL for user login vs page connection
     const oauthUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${env.META_APP_ID}&redirect_uri=${encodeURIComponent(
       redirectUri,
-    )}&scope=${scope}&response_type=code`;
+    )}&scope=${scope}&response_type=code${state ? `&state=${encodeURIComponent(state)}` : ""}`;
 
     res.redirect(oauthUrl);
   } catch (error) {
@@ -79,22 +105,24 @@ export async function facebookCallbackController(
   req: Request,
   res: Response,
 ): Promise<void> {
-  try {
-    const { code, error } = req.query;
+  const { code, error, state } = req.query;
+  const frontendUrl = getValidFrontendUrl(state);
 
+  try {
     if (error) {
       logger.error({ error }, "Facebook login callback error");
-      res.redirect(`${env.FRONTEND_URL}/login?error=oauth_failed`);
+      res.redirect(`${frontendUrl}/login?error=oauth_failed`);
       return;
     }
 
     if (!code || typeof code !== "string") {
-      res.redirect(`${env.FRONTEND_URL}/login?error=invalid_code`);
+      res.redirect(`${frontendUrl}/login?error=invalid_code`);
       return;
     }
 
     const backendUrl = `${req.protocol}://${req.get("host")}`;
-    const redirectUri = `${backendUrl}/api/auth/facebook/callback`;
+    const redirectUri =
+      env.META_REDIRECT_URI || `${backendUrl}/api/auth/facebook/callback`;
 
     // 1. Exchange code for access token
     const tokenResponse = await axios
@@ -139,7 +167,7 @@ export async function facebookCallbackController(
       email: profileResponse.data.email,
     });
 
-    // 4. Set cookie and redirect
+    // 4. Set cookie and redirect with token query
     res.cookie("auth_token", token, {
       httpOnly: true,
       secure: true, // Always secure for cross-domain
@@ -147,10 +175,10 @@ export async function facebookCallbackController(
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
       path: "/",
     });
-    res.redirect(`${env.FRONTEND_URL}/dashboard`);
-  } catch (error) {
-    logger.error({ error }, "Facebook login callback failed");
-    res.redirect(`${env.FRONTEND_URL}/login?error=server_error`);
+    res.redirect(`${frontendUrl}/dashboard?token=${encodeURIComponent(token)}`);
+  } catch (err) {
+    logger.error({ error: err }, "Facebook login callback failed");
+    res.redirect(`${frontendUrl}/login?error=server_error`);
   }
 }
 
@@ -160,12 +188,14 @@ export async function googleOAuthController(
 ): Promise<void> {
   try {
     const backendUrl = `${req.protocol}://${req.get("host")}`;
-    const redirectUri = `${backendUrl}/api/auth/google/callback`;
+    const redirectUri =
+      env.GOOGLE_REDIRECT_URI || `${backendUrl}/api/auth/google/callback`;
     const scope = "openid profile email";
+    const state = typeof req.query.state === "string" ? req.query.state : "";
 
     const oauthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${env.GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(
       redirectUri,
-    )}&scope=${encodeURIComponent(scope)}&response_type=code`;
+    )}&scope=${encodeURIComponent(scope)}&response_type=code${state ? `&state=${encodeURIComponent(state)}` : ""}`;
 
     res.redirect(oauthUrl);
   } catch (error) {
@@ -178,25 +208,27 @@ export async function googleCallbackController(
   req: Request,
   res: Response,
 ): Promise<void> {
-  try {
-    const { code, error } = req.query;
+  const { code, error, state } = req.query;
+  const frontendUrl = getValidFrontendUrl(state);
 
+  try {
     logger.info({ code: !!code, error }, "Google callback received");
 
     if (error) {
       logger.error({ error }, "Google login callback error");
-      res.redirect(`${env.FRONTEND_URL}/login?error=oauth_failed`);
+      res.redirect(`${frontendUrl}/login?error=oauth_failed`);
       return;
     }
 
     if (!code || typeof code !== "string") {
       logger.error({ code }, "Invalid Google authorization code");
-      res.redirect(`${env.FRONTEND_URL}/login?error=invalid_code`);
+      res.redirect(`${frontendUrl}/login?error=invalid_code`);
       return;
     }
 
     const backendUrl = `${req.protocol}://${req.get("host")}`;
-    const redirectUri = `${backendUrl}/api/auth/google/callback`;
+    const redirectUri =
+      env.GOOGLE_REDIRECT_URI || `${backendUrl}/api/auth/google/callback`;
 
     logger.info({ redirectUri }, "Exchanging Google code for token");
 
@@ -261,7 +293,7 @@ export async function googleCallbackController(
 
     logger.info({ userId: user.id }, "User logged in with Google successfully");
 
-    // 4. Set cookie and redirect
+    // 4. Set cookie and redirect with token query
     res.cookie("auth_token", token, {
       httpOnly: true,
       secure: true, // Always secure for cross-domain
@@ -270,11 +302,11 @@ export async function googleCallbackController(
       path: "/",
     });
 
-    logger.info({ frontendUrl: env.FRONTEND_URL }, "Redirecting to dashboard");
-    res.redirect(`${env.FRONTEND_URL}/dashboard`);
-  } catch (error) {
-    logger.error({ error }, "Google login callback failed");
-    res.redirect(`${env.FRONTEND_URL}/login?error=server_error`);
+    logger.info({ frontendUrl }, "Redirecting to dashboard");
+    res.redirect(`${frontendUrl}/dashboard?token=${encodeURIComponent(token)}`);
+  } catch (err) {
+    logger.error({ error: err }, "Google login callback failed");
+    res.redirect(`${frontendUrl}/login?error=server_error`);
   }
 }
 

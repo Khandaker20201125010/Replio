@@ -18,7 +18,14 @@ export function authenticate(
   next: NextFunction,
 ): void {
   try {
-    const token = req.cookies.auth_token;
+    let token = req.cookies?.auth_token;
+
+    if (!token && req.headers.authorization) {
+      const authHeader = req.headers.authorization;
+      if (authHeader.startsWith("Bearer ")) {
+        token = authHeader.substring(7).trim();
+      }
+    }
 
     if (!token) {
       throw new AuthenticationError("No authentication token provided");
