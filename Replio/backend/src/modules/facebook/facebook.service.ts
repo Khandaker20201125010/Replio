@@ -15,7 +15,13 @@ import type {
 export function getOAuthUrl(): string {
   const scope =
     "pages_manage_engagement,pages_manage_posts,pages_read_engagement";
-  return `https://www.facebook.com/v18.0/dialog/oauth?client_id=${env.META_APP_ID}&redirect_uri=${encodeURIComponent(env.META_REDIRECT_URI)}&scope=${scope}&response_type=code`;
+  // Use the configured redirect URI from environment
+  const redirectUri = env.META_REDIRECT_URI;
+  logger.info(
+    { redirectUri, metaAppId: env.META_APP_ID },
+    "Generating Facebook OAuth URL",
+  );
+  return `https://www.facebook.com/v18.0/dialog/oauth?client_id=${env.META_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scope}&response_type=code`;
 }
 
 export async function exchangeCodeForToken(code: string): Promise<string> {
