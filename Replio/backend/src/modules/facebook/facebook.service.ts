@@ -15,7 +15,11 @@ import type {
 export function getOAuthUrl(): string {
   const scope =
     "pages_manage_engagement,pages_manage_posts,pages_read_engagement";
-  // Use the configured redirect URI from environment
+
+  if (!env.META_APP_ID || !env.META_REDIRECT_URI) {
+    throw new Error("META_APP_ID and META_REDIRECT_URI must be configured");
+  }
+
   const redirectUri = env.META_REDIRECT_URI;
   logger.info(
     { redirectUri, metaAppId: env.META_APP_ID },

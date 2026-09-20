@@ -6,7 +6,7 @@ export declare const env: {
     FRONTEND_URL: string;
     META_APP_ID?: string | undefined;
     META_APP_SECRET?: string | undefined;
-    META_REDIRECT_URI: string;
+    META_REDIRECT_URI?: string | undefined;
     META_WEBHOOK_VERIFY_TOKEN?: string | undefined;
     GOOGLE_CLIENT_ID?: string | undefined;
     GOOGLE_CLIENT_SECRET?: string | undefined;

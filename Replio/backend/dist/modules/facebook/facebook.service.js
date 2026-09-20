@@ -27,7 +27,9 @@ const errors_1 = require("../../utils/errors");
 const logger_1 = require("../../utils/logger");
 function getOAuthUrl() {
     const scope = "pages_manage_engagement,pages_manage_posts,pages_read_engagement";
-    // Use the configured redirect URI from environment
+    if (!env_1.env.META_APP_ID || !env_1.env.META_REDIRECT_URI) {
+        throw new Error("META_APP_ID and META_REDIRECT_URI must be configured");
+    }
     const redirectUri = env_1.env.META_REDIRECT_URI;
     logger_1.logger.info({ redirectUri, metaAppId: env_1.env.META_APP_ID }, "Generating Facebook OAuth URL");
     return `https://www.facebook.com/v18.0/dialog/oauth?client_id=${env_1.env.META_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scope}&response_type=code`;
