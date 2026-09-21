@@ -1,5 +1,5 @@
 import type { FacebookPagesResponse, FacebookPageDetails } from "./facebook.types";
-export declare function getOAuthUrl(): string;
+export declare function getOAuthUrl(state?: string): string;
 export declare function exchangeCodeForToken(code: string): Promise<string>;
 export declare function getUserPages(userAccessToken: string): Promise<FacebookPagesResponse>;
 export declare function verifyPage(pageId: string, pageAccessToken: string): Promise<FacebookPageDetails>;

@@ -12,14 +12,66 @@ import {
 import { logger } from "../../utils/logger";
 import { env } from "../../config/env";
 
+function getValidFrontendUrl(stateOrigin?: string): string {
+  if (stateOrigin) {
+    try {
+      const parsedUrl = new URL(stateOrigin);
+      const allowedOrigins = [
+        env.FRONTEND_URL,
+        "https://replio-frontend-livid.vercel.app",
+        "https://replio-frontend.vercel.app",
+        "http://localhost:3000",
+      ];
+      if (
+        allowedOrigins.includes(parsedUrl.origin) ||
+        parsedUrl.hostname.endsWith(".vercel.app") ||
+        parsedUrl.hostname === "localhost" ||
+        parsedUrl.hostname === "127.0.0.1"
+      ) {
+        return parsedUrl.origin;
+      }
+    } catch {
+      // Fall through to default
+    }
+  }
+  return env.FRONTEND_URL;
+}
+
 export async function initiateOAuthController(
   req: Request,
   res: Response,
 ): Promise<void> {
   try {
-    const oauthUrl = getOAuthUrl();
+    const userId = req.user?.userId;
+    const origin =
+      (typeof req.query.origin === "string" && req.query.origin) ||
+      req.headers.origin ||
+      env.FRONTEND_URL;
 
-    res.redirect(oauthUrl);
+    // Encode state with userId and origin
+    const statePayload = {
+      userId: userId || "",
+      origin,
+    };
+    const state = Buffer.from(JSON.stringify(statePayload)).toString("base64url");
+    const oauthUrl = getOAuthUrl(state);
+
+    // If request explicitly accepts HTML and not JSON (e.g. direct link in browser)
+    if (
+      req.headers.accept?.includes("text/html") &&
+      !req.headers.accept?.includes("application/json") &&
+      !req.xhr
+    ) {
+      res.redirect(oauthUrl);
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        authUrl: oauthUrl,
+      },
+    });
   } catch (error) {
     logger.error({ error }, "OAuth initiation failed");
     throw error;
@@ -30,26 +82,34 @@ export async function oauthCallbackController(
   req: Request,
   res: Response,
 ): Promise<void> {
-  try {
-    const { code, error } = req.query;
+  const { code, error, state } = req.query;
 
+  let userId: string | undefined = req.user?.userId;
+  let frontendUrl = env.FRONTEND_URL;
+
+  if (state && typeof state === "string") {
+    try {
+      const decoded = JSON.parse(
+        Buffer.from(state, "base64url").toString("utf-8"),
+      );
+      if (decoded.userId) userId = decoded.userId;
+      if (decoded.origin) frontendUrl = getValidFrontendUrl(decoded.origin);
+    } catch {
+      // If state was raw string / userId
+      if (!userId) userId = state;
+    }
+  }
+
+  try {
     if (error) {
-      logger.error({ error }, "OAuth callback error");
-      res.redirect(`${env.FRONTEND_URL}/login?error=oauth_failed`);
+      logger.error({ error }, "Facebook OAuth callback error");
+      res.redirect(`${frontendUrl}/pages?error=${encodeURIComponent(String(error))}`);
       return;
     }
 
     if (!code || typeof code !== "string") {
       logger.warn("OAuth callback called without authorization code");
-      res.status(400).json({
-        success: false,
-        error: {
-          code: "VALIDATION_ERROR",
-          message:
-            "This endpoint should only be called by Facebook OAuth with an authorization code",
-          info: "To test Facebook OAuth, access /api/facebook/oauth first to initiate the flow",
-        },
-      });
+      res.redirect(`${frontendUrl}/pages?error=no_code`);
       return;
     }
 
@@ -59,6 +119,35 @@ export async function oauthCallbackController(
     // Get user's Facebook pages
     const pagesResponse = await getUserPages(userAccessToken);
 
+    if (!pagesResponse.data || pagesResponse.data.length === 0) {
+      logger.warn({ userId }, "No Facebook pages returned by Meta");
+      res.redirect(`${frontendUrl}/pages?warning=no_pages_found`);
+      return;
+    }
+
+    // Connect all fetched pages for this user if userId is available
+    if (userId) {
+      for (const page of pagesResponse.data) {
+        await connectPage(
+          userId,
+          page.id,
+          page.name,
+          page.access_token,
+        );
+      }
+
+      logger.info(
+        { userId, pageCount: pagesResponse.data.length },
+        "Facebook pages connected successfully from OAuth callback",
+      );
+
+      res.redirect(
+        `${frontendUrl}/pages?connected=true&count=${pagesResponse.data.length}`,
+      );
+      return;
+    }
+
+    // Fallback if userId was not present in state
     res.status(200).json({
       success: true,
       data: {
@@ -66,9 +155,11 @@ export async function oauthCallbackController(
         userAccessToken,
       },
     });
-  } catch (error) {
-    logger.error({ error }, "OAuth callback failed");
-    throw error;
+  } catch (err: any) {
+    logger.error({ error: err }, "Facebook OAuth callback processing failed");
+    res.redirect(
+      `${frontendUrl}/pages?error=${encodeURIComponent(err.message || "connection_failed")}`,
+    );
   }
 }
 

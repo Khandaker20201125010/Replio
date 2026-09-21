@@ -18,11 +18,57 @@ exports.getPageController = getPageController;
 const facebook_service_1 = require("./facebook.service");
 const logger_1 = require("../../utils/logger");
 const env_1 = require("../../config/env");
+function getValidFrontendUrl(stateOrigin) {
+    if (stateOrigin) {
+        try {
+            const parsedUrl = new URL(stateOrigin);
+            const allowedOrigins = [
+                env_1.env.FRONTEND_URL,
+                "https://replio-frontend-livid.vercel.app",
+                "https://replio-frontend.vercel.app",
+                "http://localhost:3000",
+            ];
+            if (allowedOrigins.includes(parsedUrl.origin) ||
+                parsedUrl.hostname.endsWith(".vercel.app") ||
+                parsedUrl.hostname === "localhost" ||
+                parsedUrl.hostname === "127.0.0.1") {
+                return parsedUrl.origin;
+            }
+        }
+        catch (_a) {
+            // Fall through to default
+        }
+    }
+    return env_1.env.FRONTEND_URL;
+}
 function initiateOAuthController(req, res) {
     return __awaiter(this, void 0, void 0, function* () {
+        var _a, _b, _c;
         try {
-            const oauthUrl = (0, facebook_service_1.getOAuthUrl)();
-            res.redirect(oauthUrl);
+            const userId = (_a = req.user) === null || _a === void 0 ? void 0 : _a.userId;
+            const origin = (typeof req.query.origin === "string" && req.query.origin) ||
+                req.headers.origin ||
+                env_1.env.FRONTEND_URL;
+            // Encode state with userId and origin
+            const statePayload = {
+                userId: userId || "",
+                origin,
+            };
+            const state = Buffer.from(JSON.stringify(statePayload)).toString("base64url");
+            const oauthUrl = (0, facebook_service_1.getOAuthUrl)(state);
+            // If request explicitly accepts HTML and not JSON (e.g. direct link in browser)
+            if (((_b = req.headers.accept) === null || _b === void 0 ? void 0 : _b.includes("text/html")) &&
+                !((_c = req.headers.accept) === null || _c === void 0 ? void 0 : _c.includes("application/json")) &&
+                !req.xhr) {
+                res.redirect(oauthUrl);
+                return;
+            }
+            res.status(200).json({
+                success: true,
+                data: {
+                    authUrl: oauthUrl,
+                },
+            });
         }
         catch (error) {
             logger_1.logger.error({ error }, "OAuth initiation failed");
@@ -32,29 +78,54 @@ function initiateOAuthController(req, res) {
 }
 function oauthCallbackController(req, res) {
     return __awaiter(this, void 0, void 0, function* () {
+        var _a;
+        const { code, error, state } = req.query;
+        let userId = (_a = req.user) === null || _a === void 0 ? void 0 : _a.userId;
+        let frontendUrl = env_1.env.FRONTEND_URL;
+        if (state && typeof state === "string") {
+            try {
+                const decoded = JSON.parse(Buffer.from(state, "base64url").toString("utf-8"));
+                if (decoded.userId)
+                    userId = decoded.userId;
+                if (decoded.origin)
+                    frontendUrl = getValidFrontendUrl(decoded.origin);
+            }
+            catch (_b) {
+                // If state was raw string / userId
+                if (!userId)
+                    userId = state;
+            }
+        }
         try {
-            const { code, error } = req.query;
             if (error) {
-                logger_1.logger.error({ error }, "OAuth callback error");
-                res.redirect(`${env_1.env.FRONTEND_URL}/login?error=oauth_failed`);
+                logger_1.logger.error({ error }, "Facebook OAuth callback error");
+                res.redirect(`${frontendUrl}/pages?error=${encodeURIComponent(String(error))}`);
                 return;
             }
             if (!code || typeof code !== "string") {
                 logger_1.logger.warn("OAuth callback called without authorization code");
-                res.status(400).json({
-                    success: false,
-                    error: {
-                        code: "VALIDATION_ERROR",
-                        message: "This endpoint should only be called by Facebook OAuth with an authorization code",
-                        info: "To test Facebook OAuth, access /api/facebook/oauth first to initiate the flow",
-                    },
-                });
+                res.redirect(`${frontendUrl}/pages?error=no_code`);
                 return;
             }
             // Exchange code for user access token
             const userAccessToken = yield (0, facebook_service_1.exchangeCodeForToken)(code);
             // Get user's Facebook pages
             const pagesResponse = yield (0, facebook_service_1.getUserPages)(userAccessToken);
+            if (!pagesResponse.data || pagesResponse.data.length === 0) {
+                logger_1.logger.warn({ userId }, "No Facebook pages returned by Meta");
+                res.redirect(`${frontendUrl}/pages?warning=no_pages_found`);
+                return;
+            }
+            // Connect all fetched pages for this user if userId is available
+            if (userId) {
+                for (const page of pagesResponse.data) {
+                    yield (0, facebook_service_1.connectPage)(userId, page.id, page.name, page.access_token);
+                }
+                logger_1.logger.info({ userId, pageCount: pagesResponse.data.length }, "Facebook pages connected successfully from OAuth callback");
+                res.redirect(`${frontendUrl}/pages?connected=true&count=${pagesResponse.data.length}`);
+                return;
+            }
+            // Fallback if userId was not present in state
             res.status(200).json({
                 success: true,
                 data: {
@@ -63,9 +134,9 @@ function oauthCallbackController(req, res) {
                 },
             });
         }
-        catch (error) {
-            logger_1.logger.error({ error }, "OAuth callback failed");
-            throw error;
+        catch (err) {
+            logger_1.logger.error({ error: err }, "Facebook OAuth callback processing failed");
+            res.redirect(`${frontendUrl}/pages?error=${encodeURIComponent(err.message || "connection_failed")}`);
         }
     });
 }

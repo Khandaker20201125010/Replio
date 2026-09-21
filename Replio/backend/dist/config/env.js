@@ -14,6 +14,7 @@ const envSchema = zod_1.z.object({
     META_APP_SECRET: zod_1.z.string().optional(),
     META_REDIRECT_URI: zod_1.z.string().url().optional(),
     META_WEBHOOK_VERIFY_TOKEN: zod_1.z.string().optional(),
+    META_OAUTH_SCOPES: zod_1.z.string().optional(),
     GOOGLE_CLIENT_ID: zod_1.z.string().optional(),
     GOOGLE_CLIENT_SECRET: zod_1.z.string().optional(),
     GOOGLE_REDIRECT_URI: zod_1.z.string().url(),

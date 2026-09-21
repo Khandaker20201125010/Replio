@@ -12,9 +12,10 @@ import type {
   FacebookPageDetails,
 } from "./facebook.types";
 
-export function getOAuthUrl(): string {
+export function getOAuthUrl(state?: string): string {
   const scope =
-    "pages_manage_engagement,pages_manage_posts,pages_read_engagement";
+    env.META_OAUTH_SCOPES ||
+    "pages_show_list,pages_read_engagement,pages_manage_posts,pages_manage_engagement";
 
   if (!env.META_APP_ID || !env.META_REDIRECT_URI) {
     throw new Error("META_APP_ID and META_REDIRECT_URI must be configured");
@@ -25,7 +26,11 @@ export function getOAuthUrl(): string {
     { redirectUri, metaAppId: env.META_APP_ID },
     "Generating Facebook OAuth URL",
   );
-  return `https://www.facebook.com/v18.0/dialog/oauth?client_id=${env.META_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scope}&response_type=code`;
+  let url = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${env.META_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scope}&response_type=code`;
+  if (state) {
+    url += `&state=${encodeURIComponent(state)}`;
+  }
+  return url;
 }
 
 export async function exchangeCodeForToken(code: string): Promise<string> {
@@ -104,19 +109,31 @@ export async function connectPage(
   pageName: string,
   pageAccessToken: string,
 ) {
-  // Check if page is already connected by this user
-  const existingPage = await prisma.facebookPage.findFirst({
+  // Check if page is already connected by this user or exists
+  const existingPage = await prisma.facebookPage.findUnique({
     where: {
-      userId,
       pageId,
     },
   });
 
+  let page;
   if (existingPage) {
     // Update existing page
-    return await prisma.facebookPage.update({
+    page = await prisma.facebookPage.update({
       where: { id: existingPage.id },
       data: {
+        userId,
+        pageName,
+        pageAccessToken,
+        isConnected: true,
+      },
+    });
+  } else {
+    // Create new page connection
+    page = await prisma.facebookPage.create({
+      data: {
+        userId,
+        pageId,
         pageName,
         pageAccessToken,
         isConnected: true,
@@ -124,16 +141,22 @@ export async function connectPage(
     });
   }
 
-  // Create new page connection
-  const page = await prisma.facebookPage.create({
-    data: {
-      userId,
-      pageId,
-      pageName,
-      pageAccessToken,
-      isConnected: true,
-    },
-  });
+  // Subscribe page to app webhooks for comments
+  try {
+    await axios.post(
+      `https://graph.facebook.com/v18.0/${pageId}/subscribed_apps`,
+      null,
+      {
+        params: {
+          subscribed_fields: "feed",
+          access_token: pageAccessToken,
+        },
+      },
+    );
+    logger.info({ pageId }, "Facebook page subscribed to webhooks successfully");
+  } catch (subErr) {
+    logger.warn({ subErr, pageId }, "Failed to subscribe page to webhooks");
+  }
 
   logger.info({ userId, pageId }, "Facebook page connected successfully");
 

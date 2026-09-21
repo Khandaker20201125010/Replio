@@ -8,6 +8,7 @@ export declare const env: {
     META_APP_SECRET?: string | undefined;
     META_REDIRECT_URI?: string | undefined;
     META_WEBHOOK_VERIFY_TOKEN?: string | undefined;
+    META_OAUTH_SCOPES?: string | undefined;
     GOOGLE_CLIENT_ID?: string | undefined;
     GOOGLE_CLIENT_SECRET?: string | undefined;
     GOOGLE_REDIRECT_URI: string;
