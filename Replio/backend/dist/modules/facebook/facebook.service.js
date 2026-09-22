@@ -33,7 +33,7 @@ function getOAuthUrl(state) {
     }
     const redirectUri = env_1.env.META_REDIRECT_URI;
     logger_1.logger.info({ redirectUri, metaAppId: env_1.env.META_APP_ID }, "Generating Facebook OAuth URL");
-    let url = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${env_1.env.META_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scope}&response_type=code`;
+    let url = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${env_1.env.META_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scope}&response_type=code&auth_type=rerequest`;
     if (state) {
         url += `&state=${encodeURIComponent(state)}`;
     }

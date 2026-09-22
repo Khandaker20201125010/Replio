@@ -26,7 +26,7 @@ export function getOAuthUrl(state?: string): string {
     { redirectUri, metaAppId: env.META_APP_ID },
     "Generating Facebook OAuth URL",
   );
-  let url = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${env.META_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scope}&response_type=code`;
+  let url = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${env.META_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scope}&response_type=code&auth_type=rerequest`;
   if (state) {
     url += `&state=${encodeURIComponent(state)}`;
   }

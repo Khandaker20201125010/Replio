@@ -118,8 +118,15 @@ function approveReply(userId, replyId) {
                 approvedBy: userId,
             },
         });
-        logger_1.logger.info({ userId, replyId }, "Reply approved");
-        return updated;
+        logger_1.logger.info({ userId, replyId }, "Reply approved, sending to Facebook");
+        try {
+            const sent = yield sendReplyToFacebook(replyId);
+            return sent;
+        }
+        catch (error) {
+            logger_1.logger.error({ error, replyId }, "Failed to send approved reply to Facebook");
+            return updated;
+        }
     });
 }
 function rejectReply(userId, replyId) {
@@ -169,14 +176,22 @@ function retryReply(userId, replyId) {
             throw new Error("Reply can only be retried when in FAILED status");
         }
         // Update status to PENDING for retry
-        const updated = yield prisma_1.default.reply.update({
+        yield prisma_1.default.reply.update({
             where: { id: replyId },
             data: {
                 status: "PENDING",
+                errorMessage: null,
             },
         });
-        logger_1.logger.info({ userId, replyId }, "Reply marked for retry");
-        return updated;
+        logger_1.logger.info({ userId, replyId }, "Reply marked for retry, sending to Facebook");
+        try {
+            const sent = yield sendReplyToFacebook(replyId);
+            return sent;
+        }
+        catch (error) {
+            logger_1.logger.error({ error, replyId }, "Failed to retry send reply to Facebook");
+            throw error;
+        }
     });
 }
 function sendReplyToFacebook(replyId) {

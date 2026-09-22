@@ -37,34 +37,57 @@ function processWebhookEvent(payload) {
             if (!entry.changes || !Array.isArray(entry.changes)) {
                 continue;
             }
+            const entryPageId = entry.id;
             for (const change of entry.changes) {
-                if (change.field === "comments" && change.value) {
-                    yield handleCommentEvent(change.value);
+                if ((change.field === "feed" || change.field === "comments") &&
+                    change.value) {
+                    // If feed event, only process comment items
+                    if (change.field === "feed" &&
+                        change.value.item &&
+                        change.value.item !== "comment") {
+                        logger_1.logger.info({ item: change.value.item }, "Ignoring non-comment feed item");
+                        continue;
+                    }
+                    yield handleCommentEvent(change.value, entryPageId);
                 }
             }
         }
     });
 }
-function handleCommentEvent(event) {
+function handleCommentEvent(event, entryPageId) {
     return __awaiter(this, void 0, void 0, function* () {
+        var _a;
         try {
-            const { comment_id, post_id, message, from, verb } = event;
+            const comment_id = event.comment_id || event.id;
+            const post_id = event.post_id || ((_a = event.post) === null || _a === void 0 ? void 0 : _a.id);
+            const message = event.message;
+            const from = event.from;
+            const verb = event.verb || "add";
             // Only process new comments
             if (verb !== "add") {
                 logger_1.logger.info({ comment_id, verb }, "Ignoring non-add comment event");
                 return;
             }
-            // Extract page ID from post_id
-            const pageId = post_id.split("_")[0];
+            if (!message || !comment_id) {
+                logger_1.logger.info({ event }, "Missing comment_id or message, skipping");
+                return;
+            }
+            // Extract page ID from post_id or entryPageId
+            let pageId = entryPageId;
+            if (!pageId && post_id) {
+                pageId = post_id.split("_")[0];
+            }
             // Find connected page
             const facebookPage = yield prisma_1.default.facebookPage.findFirst({
-                where: {
-                    pageId,
-                    isConnected: true,
-                },
+                where: Object.assign(Object.assign({}, (pageId ? { pageId } : {})), { isConnected: true }),
             });
             if (!facebookPage) {
-                logger_1.logger.warn({ pageId }, "No connected page found for webhook event");
+                logger_1.logger.warn({ pageId, entryPageId }, "No connected page found for webhook event");
+                return;
+            }
+            // CRITICAL: Ignore comments made by the Page itself (prevents infinite reply loop!)
+            if (from && String(from.id) === String(facebookPage.pageId)) {
+                logger_1.logger.info({ comment_id, pageId: facebookPage.pageId }, "Ignoring comment made by the Page itself");
                 return;
             }
             // Check for duplicate comment
@@ -82,9 +105,9 @@ function handleCommentEvent(event) {
                 data: {
                     commentId: comment_id,
                     facebookPageId: facebookPage.id,
-                    postId: post_id,
-                    userId: from.id,
-                    userName: from.name,
+                    postId: post_id || `${facebookPage.pageId}_unknown`,
+                    userId: (from === null || from === void 0 ? void 0 : from.id) || null,
+                    userName: (from === null || from === void 0 ? void 0 : from.name) || null,
                     userMessage: message,
                     status: "PENDING",
                     createdTime: new Date(),
@@ -92,7 +115,6 @@ function handleCommentEvent(event) {
             });
             logger_1.logger.info({ commentId: comment.id, facebookCommentId: comment_id }, "Comment created from webhook");
             // Trigger comment processing asynchronously
-            // In production, this should use a job queue
             setTimeout(() => __awaiter(this, void 0, void 0, function* () {
                 try {
                     yield (0, comment_service_1.processComment)(comment.id);
@@ -100,7 +122,7 @@ function handleCommentEvent(event) {
                 catch (error) {
                     logger_1.logger.error({ error, commentId: comment.id }, "Async comment processing failed");
                 }
-            }), 0);
+            }), 500);
         }
         catch (error) {
             logger_1.logger.error({ error, event }, "Failed to handle comment event");

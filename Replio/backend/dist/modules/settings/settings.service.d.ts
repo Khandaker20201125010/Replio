@@ -1,52 +1,5 @@
-export declare function getSettings(userId: string): Promise<{
-    id: string;
-    userId: string;
-    status: import(".prisma/client").$Enums.AISettingStatus;
-    aiProvider: string;
-    model: string;
-    confidenceThreshold: number;
-    tone: string;
-    language: string;
-    emojiUsage: boolean;
-    maxLength: number;
-    spamHandling: string;
-    humanApprovalMode: boolean;
-    fallbackBehavior: string;
-    createdAt: Date;
-    updatedAt: Date;
-}>;
-export declare function updateSettings(userId: string, data: any): Promise<{
-    id: string;
-    userId: string;
-    status: import(".prisma/client").$Enums.AISettingStatus;
-    aiProvider: string;
-    model: string;
-    confidenceThreshold: number;
-    tone: string;
-    language: string;
-    emojiUsage: boolean;
-    maxLength: number;
-    spamHandling: string;
-    humanApprovalMode: boolean;
-    fallbackBehavior: string;
-    createdAt: Date;
-    updatedAt: Date;
-}>;
-export declare function resetSettings(userId: string): Promise<{
-    id: string;
-    userId: string;
-    status: import(".prisma/client").$Enums.AISettingStatus;
-    aiProvider: string;
-    model: string;
-    confidenceThreshold: number;
-    tone: string;
-    language: string;
-    emojiUsage: boolean;
-    maxLength: number;
-    spamHandling: string;
-    humanApprovalMode: boolean;
-    fallbackBehavior: string;
-    createdAt: Date;
-    updatedAt: Date;
-}>;
+export declare function formatSettingsResponse(settings: any): any;
+export declare function getSettings(userId: string): Promise<any>;
+export declare function updateSettings(userId: string, data: any): Promise<any>;
+export declare function resetSettings(userId: string): Promise<any>;
 //# sourceMappingURL=settings.service.d.ts.map

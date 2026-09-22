@@ -12,6 +12,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.formatSettingsResponse = formatSettingsResponse;
 exports.getSettings = getSettings;
 exports.updateSettings = updateSettings;
 exports.resetSettings = resetSettings;
@@ -30,6 +31,12 @@ const DEFAULT_SETTINGS = {
     humanApprovalMode: false,
     fallbackBehavior: "skip",
 };
+function formatSettingsResponse(settings) {
+    var _a;
+    if (!settings)
+        return null;
+    return Object.assign(Object.assign({}, settings), { provider: settings.aiProvider || "openrouter", model: settings.model || "google/gemma-4-31b-it:free", confidenceThreshold: (_a = settings.confidenceThreshold) !== null && _a !== void 0 ? _a : 0.7, autoReplyEnabled: !settings.humanApprovalMode, requireHumanReview: Boolean(settings.humanApprovalMode), maxReplyLength: settings.maxLength || 500, tone: settings.tone || "professional", language: settings.language || "en", status: settings.status || "ACTIVE" });
+}
 function getSettings(userId) {
     return __awaiter(this, void 0, void 0, function* () {
         let settings = yield prisma_1.default.aISettings.findUnique({
@@ -42,18 +49,55 @@ function getSettings(userId) {
             });
             logger_1.logger.info({ userId }, "Created default AI settings for user");
         }
-        return settings;
+        return formatSettingsResponse(settings);
     });
 }
 function updateSettings(userId, data) {
     return __awaiter(this, void 0, void 0, function* () {
+        const updateData = {};
+        if (data.provider !== undefined)
+            updateData.aiProvider = data.provider;
+        if (data.aiProvider !== undefined)
+            updateData.aiProvider = data.aiProvider;
+        if (data.model !== undefined)
+            updateData.model = data.model;
+        if (data.confidenceThreshold !== undefined) {
+            updateData.confidenceThreshold = parseFloat(String(data.confidenceThreshold));
+        }
+        if (data.tone !== undefined)
+            updateData.tone = data.tone;
+        if (data.language !== undefined)
+            updateData.language = data.language;
+        if (data.emojiUsage !== undefined)
+            updateData.emojiUsage = Boolean(data.emojiUsage);
+        if (data.maxReplyLength !== undefined) {
+            updateData.maxLength = parseInt(String(data.maxReplyLength), 10);
+        }
+        if (data.maxLength !== undefined) {
+            updateData.maxLength = parseInt(String(data.maxLength), 10);
+        }
+        if (data.requireHumanReview !== undefined) {
+            updateData.humanApprovalMode = Boolean(data.requireHumanReview);
+        }
+        else if (data.autoReplyEnabled !== undefined) {
+            updateData.humanApprovalMode = !data.autoReplyEnabled;
+        }
+        else if (data.humanApprovalMode !== undefined) {
+            updateData.humanApprovalMode = Boolean(data.humanApprovalMode);
+        }
+        if (data.spamHandling !== undefined)
+            updateData.spamHandling = data.spamHandling;
+        if (data.fallbackBehavior !== undefined)
+            updateData.fallbackBehavior = data.fallbackBehavior;
+        if (data.status !== undefined)
+            updateData.status = data.status;
         const settings = yield prisma_1.default.aISettings.upsert({
             where: { userId },
-            update: data,
-            create: Object.assign(Object.assign({ userId }, DEFAULT_SETTINGS), data),
+            update: updateData,
+            create: Object.assign(Object.assign({ userId }, DEFAULT_SETTINGS), updateData),
         });
-        logger_1.logger.info({ userId }, "AI settings updated");
-        return settings;
+        logger_1.logger.info({ userId, humanApprovalMode: settings.humanApprovalMode }, "AI settings updated");
+        return formatSettingsResponse(settings);
     });
 }
 function resetSettings(userId) {
@@ -64,7 +108,7 @@ function resetSettings(userId) {
             create: Object.assign({ userId }, DEFAULT_SETTINGS),
         });
         logger_1.logger.info({ userId }, "AI settings reset to defaults");
-        return settings;
+        return formatSettingsResponse(settings);
     });
 }
 //# sourceMappingURL=settings.service.js.map

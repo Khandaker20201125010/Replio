@@ -20,6 +20,8 @@ const prisma_1 = __importDefault(require("../../config/prisma"));
 const errors_1 = require("../../utils/errors");
 const logger_1 = require("../../utils/logger");
 const ai_service_1 = require("../ai/ai.service");
+const reply_service_1 = require("../replies/reply.service");
+const rules_service_1 = require("../rules/rules.service");
 function getComments(userId, filters) {
     return __awaiter(this, void 0, void 0, function* () {
         const { pageId, status, limit = 20, offset = 0 } = filters;
@@ -134,11 +136,30 @@ function processComment(commentId) {
             logger_1.logger.info({ commentId, status: comment.status }, "Comment already processed");
             return comment;
         }
-        // Get AI settings for the user
-        const aiSettings = yield prisma_1.default.aISettings.findUnique({
+        // Get AI settings for the user (or create defaults)
+        let aiSettings = yield prisma_1.default.aISettings.findUnique({
             where: { userId: comment.facebookPage.userId },
         });
-        if (!aiSettings || aiSettings.status !== "ACTIVE") {
+        if (!aiSettings) {
+            aiSettings = yield prisma_1.default.aISettings.create({
+                data: {
+                    userId: comment.facebookPage.userId,
+                    status: "ACTIVE",
+                    aiProvider: "openrouter",
+                    model: "google/gemma-4-31b-it:free",
+                    confidenceThreshold: 0.7,
+                    tone: "professional",
+                    language: "en",
+                    emojiUsage: true,
+                    maxLength: 500,
+                    spamHandling: "ignore",
+                    humanApprovalMode: false,
+                    fallbackBehavior: "skip",
+                },
+            });
+            logger_1.logger.info({ userId: comment.facebookPage.userId }, "Created default AI settings");
+        }
+        if (aiSettings.status !== "ACTIVE") {
             yield prisma_1.default.comment.update({
                 where: { id: commentId },
                 data: { status: "IGNORED" },
@@ -147,7 +168,19 @@ function processComment(commentId) {
             return comment;
         }
         try {
-            // Analyze comment with AI
+            // 1. Check custom reply rules first
+            const matchingRule = yield (0, rules_service_1.evaluateRules)(comment.userMessage, comment.facebookPage.userId);
+            if (matchingRule) {
+                logger_1.logger.info({ commentId, ruleId: matchingRule.id, action: matchingRule.action }, "Matching rule found for comment");
+                if (matchingRule.action === "IGNORE") {
+                    yield prisma_1.default.comment.update({
+                        where: { id: commentId },
+                        data: { status: "IGNORED" },
+                    });
+                    return comment;
+                }
+            }
+            // 2. Analyze comment with AI
             const analysis = yield (0, ai_service_1.analyzeComment)(comment.userMessage, aiSettings);
             // Update comment with AI analysis
             yield prisma_1.default.comment.update({
@@ -161,66 +194,78 @@ function processComment(commentId) {
                     aiRequiresReview: analysis.requiresHumanReview,
                 },
             });
-            // Check confidence threshold
-            if (analysis.confidence < aiSettings.confidenceThreshold) {
+            // 3. Check spam handling
+            if (analysis.isSpam && aiSettings.spamHandling === "ignore") {
                 yield prisma_1.default.comment.update({
                     where: { id: commentId },
                     data: { status: "IGNORED" },
                 });
-                logger_1.logger.info({ commentId, confidence: analysis.confidence }, "Low confidence, comment ignored");
+                logger_1.logger.info({ commentId }, "Spam detected, comment ignored");
                 return comment;
             }
-            // Check spam handling
-            if (analysis.isSpam) {
-                if (aiSettings.spamHandling === "ignore") {
+            // 4. Determine reply text (custom rule or AI generation)
+            let replyText = "";
+            let replyConfidence = analysis.confidence;
+            let ruleId = null;
+            if (matchingRule &&
+                matchingRule.action === "REPLY_CUSTOM" &&
+                matchingRule.customReply) {
+                replyText = matchingRule.customReply;
+                ruleId = matchingRule.id;
+                replyConfidence = 1.0;
+            }
+            else {
+                // Generate reply with AI
+                const replyResult = yield (0, ai_service_1.generateReply)(comment.userMessage, analysis, aiSettings);
+                // Validate reply
+                const isValid = yield (0, ai_service_1.validateReply)(replyResult.reply, aiSettings);
+                if (!isValid) {
                     yield prisma_1.default.comment.update({
                         where: { id: commentId },
-                        data: { status: "IGNORED" },
+                        data: { status: "ERROR" },
                     });
-                    logger_1.logger.info({ commentId }, "Spam detected, comment ignored");
+                    logger_1.logger.error({ commentId }, "Generated reply failed validation");
                     return comment;
                 }
-                // For 'reply' or 'review', continue to reply generation
+                replyText = replyResult.reply;
+                replyConfidence = replyResult.confidence;
             }
-            // Check if human review is required
-            if (analysis.requiresHumanReview || aiSettings.humanApprovalMode) {
-                yield prisma_1.default.comment.update({
-                    where: { id: commentId },
-                    data: { status: "PROCESSED" },
-                });
-                logger_1.logger.info({ commentId }, "Human review required");
-                return comment;
-            }
-            // Generate reply
-            const replyResult = yield (0, ai_service_1.generateReply)(comment.userMessage, analysis, aiSettings);
-            // Validate reply
-            const isValid = yield (0, ai_service_1.validateReply)(replyResult.reply, aiSettings);
-            if (!isValid) {
-                yield prisma_1.default.comment.update({
-                    where: { id: commentId },
-                    data: { status: "ERROR" },
-                });
-                logger_1.logger.error({ commentId }, "Generated reply failed validation");
-                return comment;
-            }
-            // Create reply record
+            // 5. Determine if human review is required
+            const requiresReview = Boolean(aiSettings.humanApprovalMode ||
+                analysis.requiresHumanReview ||
+                (matchingRule === null || matchingRule === void 0 ? void 0 : matchingRule.action) === "HUMAN_REVIEW" ||
+                analysis.confidence < aiSettings.confidenceThreshold);
+            // 6. Create reply record
             const reply = yield prisma_1.default.reply.create({
                 data: {
                     commentId: comment.id,
                     facebookPageId: comment.facebookPageId,
-                    generatedReply: replyResult.reply,
-                    status: "PENDING",
+                    generatedReply: replyText,
+                    status: requiresReview ? "PENDING" : "APPROVED",
                     aiProvider: aiSettings.aiProvider,
-                    confidence: replyResult.confidence,
-                    requiresHumanReview: analysis.requiresHumanReview || aiSettings.humanApprovalMode,
+                    ruleId,
+                    confidence: replyConfidence,
+                    requiresHumanReview: requiresReview,
                 },
             });
-            // Update comment status
-            yield prisma_1.default.comment.update({
-                where: { id: commentId },
-                data: { status: "PROCESSED" },
-            });
-            logger_1.logger.info({ commentId, replyId: reply.id }, "Comment processed successfully, reply created");
+            logger_1.logger.info({ commentId, replyId: reply.id, requiresReview }, "Reply created in database");
+            // 7. Auto-reply to Facebook if human review is NOT required
+            if (!requiresReview) {
+                try {
+                    yield (0, reply_service_1.sendReplyToFacebook)(reply.id);
+                    logger_1.logger.info({ commentId, replyId: reply.id }, "Auto-reply sent directly to Facebook!");
+                }
+                catch (sendError) {
+                    logger_1.logger.error({ error: sendError, commentId, replyId: reply.id }, "Auto-reply Facebook send failed");
+                }
+            }
+            else {
+                yield prisma_1.default.comment.update({
+                    where: { id: commentId },
+                    data: { status: "PENDING" },
+                });
+                logger_1.logger.info({ commentId, replyId: reply.id }, "Reply queued for human review in dashboard");
+            }
             return comment;
         }
         catch (error) {

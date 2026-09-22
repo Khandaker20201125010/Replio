@@ -108,9 +108,15 @@ export async function approveReply(userId: string, replyId: string) {
     },
   });
 
-  logger.info({ userId, replyId }, "Reply approved");
+  logger.info({ userId, replyId }, "Reply approved, sending to Facebook");
 
-  return updated;
+  try {
+    const sent = await sendReplyToFacebook(replyId);
+    return sent;
+  } catch (error) {
+    logger.error({ error, replyId }, "Failed to send approved reply to Facebook");
+    return updated;
+  }
 }
 
 export async function rejectReply(userId: string, replyId: string) {
@@ -166,16 +172,23 @@ export async function retryReply(userId: string, replyId: string) {
   }
 
   // Update status to PENDING for retry
-  const updated = await prisma.reply.update({
+  await prisma.reply.update({
     where: { id: replyId },
     data: {
       status: "PENDING",
+      errorMessage: null,
     },
   });
 
-  logger.info({ userId, replyId }, "Reply marked for retry");
+  logger.info({ userId, replyId }, "Reply marked for retry, sending to Facebook");
 
-  return updated;
+  try {
+    const sent = await sendReplyToFacebook(replyId);
+    return sent;
+  } catch (error) {
+    logger.error({ error, replyId }, "Failed to retry send reply to Facebook");
+    throw error;
+  }
 }
 
 export async function sendReplyToFacebook(replyId: string) {
