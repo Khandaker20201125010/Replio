@@ -34,11 +34,12 @@ export async function processWebhookEvent(payload: any) {
         (change.field === "feed" || change.field === "comments") &&
         change.value
       ) {
-        // If feed event, only process comment items
+        // If feed event, only ignore if it's definitely not a comment (no comment_id and item is not comment)
         if (
           change.field === "feed" &&
           change.value.item &&
-          change.value.item !== "comment"
+          change.value.item !== "comment" &&
+          !change.value.comment_id
         ) {
           logger.info(
             { item: change.value.item },
@@ -72,22 +73,50 @@ async function handleCommentEvent(event: any, entryPageId?: string) {
       return;
     }
 
-    // Extract page ID from post_id or entryPageId
+    // Extract page ID from entryPageId, post_id, or comment_id
     let pageId = entryPageId;
     if (!pageId && post_id) {
       pageId = post_id.split("_")[0];
     }
 
     // Find connected page
-    const facebookPage = await prisma.facebookPage.findFirst({
-      where: {
-        ...(pageId ? { pageId } : {}),
-        isConnected: true,
-      },
-    });
+    let facebookPage = null;
+    if (pageId) {
+      facebookPage = await prisma.facebookPage.findFirst({
+        where: {
+          pageId: String(pageId),
+          isConnected: true,
+        },
+      });
+    }
+
+    // Fallback: extract page ID prefix from post_id if not found yet
+    if (!facebookPage && post_id && post_id.includes("_")) {
+      const extractedPageId = post_id.split("_")[0];
+      facebookPage = await prisma.facebookPage.findFirst({
+        where: {
+          pageId: String(extractedPageId),
+          isConnected: true,
+        },
+      });
+    }
+
+    // Fallback: extract page ID prefix from comment_id if not found yet
+    if (!facebookPage && comment_id && comment_id.includes("_")) {
+      const extractedPageId = comment_id.split("_")[0];
+      facebookPage = await prisma.facebookPage.findFirst({
+        where: {
+          pageId: String(extractedPageId),
+          isConnected: true,
+        },
+      });
+    }
 
     if (!facebookPage) {
-      logger.warn({ pageId, entryPageId }, "No connected page found for webhook event");
+      logger.warn(
+        { pageId, entryPageId, post_id, comment_id },
+        "No connected page found for webhook event",
+      );
       return;
     }
 
@@ -131,17 +160,15 @@ async function handleCommentEvent(event: any, entryPageId?: string) {
       "Comment created from webhook",
     );
 
-    // Trigger comment processing asynchronously
-    setTimeout(async () => {
-      try {
-        await processComment(comment.id);
-      } catch (error) {
-        logger.error(
-          { error, commentId: comment.id },
-          "Async comment processing failed",
-        );
-      }
-    }, 500);
+    // Process comment immediately so it is not killed on serverless runtimes
+    try {
+      await processComment(comment.id);
+    } catch (error) {
+      logger.error(
+        { error, commentId: comment.id },
+        "Comment processing failed",
+      );
+    }
   } catch (error) {
     logger.error({ error, event }, "Failed to handle comment event");
   }

@@ -17,6 +17,8 @@ exports.exchangeCodeForToken = exchangeCodeForToken;
 exports.getUserPages = getUserPages;
 exports.verifyPage = verifyPage;
 exports.connectPage = connectPage;
+exports.subscribePageToWebhooks = subscribePageToWebhooks;
+exports.resubscribePage = resubscribePage;
 exports.disconnectPage = disconnectPage;
 exports.getUserConnectedPages = getUserConnectedPages;
 exports.getPageById = getPageById;
@@ -27,7 +29,7 @@ const errors_1 = require("../../utils/errors");
 const logger_1 = require("../../utils/logger");
 function getOAuthUrl(state) {
     const scope = env_1.env.META_OAUTH_SCOPES ||
-        "pages_show_list,pages_read_engagement,pages_manage_posts,pages_manage_engagement";
+        "pages_show_list,pages_read_engagement,pages_manage_posts,pages_manage_engagement,pages_manage_metadata,pages_read_user_content";
     if (!env_1.env.META_APP_ID || !env_1.env.META_REDIRECT_URI) {
         throw new Error("META_APP_ID and META_REDIRECT_URI must be configured");
     }
@@ -128,20 +130,47 @@ function connectPage(userId, pageId, pageName, pageAccessToken) {
             });
         }
         // Subscribe page to app webhooks for comments
+        yield subscribePageToWebhooks(pageId, pageAccessToken);
+        logger_1.logger.info({ userId, pageId }, "Facebook page connected successfully");
+        return page;
+    });
+}
+function subscribePageToWebhooks(pageId, pageAccessToken) {
+    return __awaiter(this, void 0, void 0, function* () {
+        var _a, _b, _c, _d;
         try {
-            yield axios_1.default.post(`https://graph.facebook.com/v18.0/${pageId}/subscribed_apps`, null, {
+            const response = yield axios_1.default.post(`https://graph.facebook.com/v18.0/${pageId}/subscribed_apps`, null, {
                 params: {
                     subscribed_fields: "feed",
                     access_token: pageAccessToken,
                 },
             });
-            logger_1.logger.info({ pageId }, "Facebook page subscribed to webhooks successfully");
+            logger_1.logger.info({ pageId, data: response.data }, "Facebook page subscribed to webhooks successfully");
+            return { success: true, data: response.data };
         }
         catch (subErr) {
-            logger_1.logger.warn({ subErr, pageId }, "Failed to subscribe page to webhooks");
+            const errorMsg = ((_c = (_b = (_a = subErr === null || subErr === void 0 ? void 0 : subErr.response) === null || _a === void 0 ? void 0 : _a.data) === null || _b === void 0 ? void 0 : _b.error) === null || _c === void 0 ? void 0 : _c.message) ||
+                (subErr === null || subErr === void 0 ? void 0 : subErr.message) ||
+                "Unknown error";
+            logger_1.logger.warn({ pageId, error: ((_d = subErr === null || subErr === void 0 ? void 0 : subErr.response) === null || _d === void 0 ? void 0 : _d.data) || (subErr === null || subErr === void 0 ? void 0 : subErr.message) }, "Failed to subscribe page to webhooks");
+            return { success: false, error: errorMsg };
         }
-        logger_1.logger.info({ userId, pageId }, "Facebook page connected successfully");
-        return page;
+    });
+}
+function resubscribePage(userId, pageId) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const page = yield prisma_1.default.facebookPage.findFirst({
+            where: {
+                userId,
+                pageId,
+                isConnected: true,
+            },
+        });
+        if (!page) {
+            throw new errors_1.NotFoundError("Connected page not found");
+        }
+        const result = yield subscribePageToWebhooks(page.pageId, page.pageAccessToken);
+        return Object.assign({ pageId: page.pageId, pageName: page.pageName }, result);
     });
 }
 function disconnectPage(userId, pageId) {

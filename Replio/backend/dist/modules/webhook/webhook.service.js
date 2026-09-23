@@ -114,15 +114,13 @@ function handleCommentEvent(event, entryPageId) {
                 },
             });
             logger_1.logger.info({ commentId: comment.id, facebookCommentId: comment_id }, "Comment created from webhook");
-            // Trigger comment processing asynchronously
-            setTimeout(() => __awaiter(this, void 0, void 0, function* () {
-                try {
-                    yield (0, comment_service_1.processComment)(comment.id);
-                }
-                catch (error) {
-                    logger_1.logger.error({ error, commentId: comment.id }, "Async comment processing failed");
-                }
-            }), 500);
+            // Process comment immediately so it is not killed on serverless runtimes
+            try {
+                yield (0, comment_service_1.processComment)(comment.id);
+            }
+            catch (error) {
+                logger_1.logger.error({ error, commentId: comment.id }, "Comment processing failed");
+            }
         }
         catch (error) {
             logger_1.logger.error({ error, event }, "Failed to handle comment event");

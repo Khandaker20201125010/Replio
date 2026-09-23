@@ -14,6 +14,18 @@ export declare function connectPage(userId: string, pageId: string, pageName: st
     createdAt: Date;
     updatedAt: Date;
 }>;
+export declare function subscribePageToWebhooks(pageId: string, pageAccessToken: string): Promise<{
+    success: boolean;
+    data?: any;
+    error?: string;
+}>;
+export declare function resubscribePage(userId: string, pageId: string): Promise<{
+    success: boolean;
+    data?: any;
+    error?: string;
+    pageId: string;
+    pageName: string;
+}>;
 export declare function disconnectPage(userId: string, pageId: string): Promise<void>;
 export declare function getUserConnectedPages(userId: string): Promise<{
     id: string;

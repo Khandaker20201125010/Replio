@@ -3,6 +3,7 @@ export declare class OpenRouterProvider implements AIProvider {
     private apiKey;
     private embeddingModel;
     private llmModel;
+    private fallback;
     constructor();
     analyzeComment(comment: string, context?: any): Promise<AIAnalysisResult>;
     generateReply(comment: string, analysis: AIAnalysisResult, settings: any): Promise<AIReplyResult>;

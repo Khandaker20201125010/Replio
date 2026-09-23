@@ -15,6 +15,7 @@ exports.connectPageController = connectPageController;
 exports.disconnectPageController = disconnectPageController;
 exports.getConnectedPagesController = getConnectedPagesController;
 exports.getPageController = getPageController;
+exports.resubscribePageController = resubscribePageController;
 const facebook_service_1 = require("./facebook.service");
 const logger_1 = require("../../utils/logger");
 const env_1 = require("../../config/env");
@@ -235,6 +236,30 @@ function getPageController(req, res) {
         }
         catch (error) {
             logger_1.logger.error({ error }, "Get page failed");
+            throw error;
+        }
+    });
+}
+function resubscribePageController(req, res) {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            const userId = req.user.userId;
+            const { pageId } = req.params;
+            if (!pageId || Array.isArray(pageId)) {
+                res.status(400).json({ success: false, message: "Invalid page ID" });
+                return;
+            }
+            const result = yield (0, facebook_service_1.resubscribePage)(userId, pageId);
+            res.status(200).json({
+                success: result.success,
+                data: result,
+                message: result.success
+                    ? "Page subscribed to webhooks successfully"
+                    : `Subscription failed: ${result.error}`,
+            });
+        }
+        catch (error) {
+            logger_1.logger.error({ error }, "Resubscribe page failed");
             throw error;
         }
     });

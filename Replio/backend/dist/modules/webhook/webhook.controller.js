@@ -34,12 +34,9 @@ function handleWebhookEventController(req, res) {
     return __awaiter(this, void 0, void 0, function* () {
         try {
             const payload = req.body;
-            // Acknowledge immediately
+            // Process event before returning response to ensure completion on serverless runtimes
+            yield (0, webhook_service_1.processWebhookEvent)(payload);
             res.status(200).send("OK");
-            // Process asynchronously
-            (0, webhook_service_1.processWebhookEvent)(payload).catch((error) => {
-                logger_1.logger.error({ error }, "Async webhook event processing failed");
-            });
         }
         catch (error) {
             logger_1.logger.error({ error }, "Webhook event handling failed");

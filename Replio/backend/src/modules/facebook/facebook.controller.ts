@@ -2,15 +2,18 @@ import type { Request, Response } from "express";
 import {
   getOAuthUrl,
   exchangeCodeForToken,
+  getLongLivedUserToken,
   getUserPages,
   verifyPage,
   connectPage,
   disconnectPage,
   getUserConnectedPages,
   getPageById,
+  resubscribePage,
 } from "./facebook.service";
 import { logger } from "../../utils/logger";
 import { env } from "../../config/env";
+import prisma from "../../config/prisma";
 
 function getValidFrontendUrl(stateOrigin?: string): string {
   if (stateOrigin) {
@@ -114,7 +117,11 @@ export async function oauthCallbackController(
     }
 
     // Exchange code for user access token
-    const userAccessToken = await exchangeCodeForToken(code);
+    const shortLivedToken = await exchangeCodeForToken(code);
+
+    // Exchange short-lived user token for long-lived user token (60-day expiry).
+    // This guarantees that all Page Access Tokens fetched via /me/accounts are permanent (never expire)!
+    const userAccessToken = await getLongLivedUserToken(shortLivedToken);
 
     // Get user's Facebook pages
     const pagesResponse = await getUserPages(userAccessToken);
@@ -224,7 +231,14 @@ export async function getConnectedPagesController(
 ): Promise<void> {
   try {
     const userId = req.user!.userId;
-    const pages = await getUserConnectedPages(userId);
+    const [pages, aiSettings] = await Promise.all([
+      getUserConnectedPages(userId),
+      prisma.aISettings.findUnique({ where: { userId } }),
+    ]);
+
+    const autoReplyEnabled = aiSettings
+      ? !aiSettings.humanApprovalMode && aiSettings.status === "ACTIVE"
+      : true;
 
     res.status(200).json({
       success: true,
@@ -234,6 +248,8 @@ export async function getConnectedPagesController(
           pageId: page.pageId,
           pageName: page.pageName,
           isConnected: page.isConnected,
+          isActive: page.isConnected,
+          autoReplyEnabled,
           createdAt: page.createdAt,
         })),
       },
@@ -272,6 +288,34 @@ export async function getPageController(
     });
   } catch (error) {
     logger.error({ error }, "Get page failed");
+    throw error;
+  }
+}
+
+export async function resubscribePageController(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  try {
+    const userId = req.user!.userId;
+    const { pageId } = req.params;
+
+    if (!pageId || Array.isArray(pageId)) {
+      res.status(400).json({ success: false, message: "Invalid page ID" });
+      return;
+    }
+
+    const result = await resubscribePage(userId, pageId);
+
+    res.status(200).json({
+      success: result.success,
+      data: result,
+      message: result.success
+        ? "Page subscribed to webhooks successfully"
+        : `Subscription failed: ${result.error}`,
+    });
+  } catch (error) {
+    logger.error({ error }, "Resubscribe page failed");
     throw error;
   }
 }

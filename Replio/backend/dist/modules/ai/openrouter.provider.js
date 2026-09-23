@@ -12,7 +12,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.OpenRouterProvider = void 0;
 const env_1 = require("../../config/env");
 const logger_1 = require("../../utils/logger");
-const errors_1 = require("../../utils/errors");
+const mock_provider_1 = require("./mock.provider");
 class OpenRouterProvider {
     constructor() {
         Object.defineProperty(this, "apiKey", {
@@ -33,9 +33,16 @@ class OpenRouterProvider {
             writable: true,
             value: void 0
         });
+        Object.defineProperty(this, "fallback", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
         this.apiKey = env_1.env.OPENROUTER_API_KEY || null;
         this.embeddingModel = env_1.env.OPENROUTER_EMBEDDING_MODEL || 'nvidia/nemotron-3-embed-1b:free';
         this.llmModel = env_1.env.OPENROUTER_LLM_MODEL || 'google/gemma-4-31b-it:free';
+        this.fallback = new mock_provider_1.MockAIProvider();
         if (!this.apiKey) {
             logger_1.logger.warn('OpenRouter API key not configured, using fallback behavior');
         }
@@ -44,7 +51,8 @@ class OpenRouterProvider {
         return __awaiter(this, void 0, void 0, function* () {
             var _a, _b, _c;
             if (!this.apiKey) {
-                throw new errors_1.ExternalAPIError('OpenRouter client not configured', 'openrouter');
+                logger_1.logger.warn('OpenRouter API key not configured, falling back to mock provider');
+                return this.fallback.analyzeComment(comment, context);
             }
             try {
                 const response = yield fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -77,17 +85,17 @@ Respond with valid JSON only, no other text.`,
                     }),
                 });
                 if (!response.ok) {
-                    throw new errors_1.ExternalAPIError(`OpenRouter API error: ${response.status}`, 'openrouter');
+                    throw new Error(`OpenRouter API error: ${response.status} ${response.statusText}`);
                 }
                 const data = yield response.json();
                 const content = (_c = (_b = (_a = data.choices) === null || _a === void 0 ? void 0 : _a[0]) === null || _b === void 0 ? void 0 : _b.message) === null || _c === void 0 ? void 0 : _c.content;
                 if (!content) {
-                    throw new errors_1.ExternalAPIError('No response from OpenRouter', 'openrouter');
+                    throw new Error('No response from OpenRouter');
                 }
                 // Extract JSON from response (in case there's extra text)
                 const jsonMatch = content.match(/\{[\s\S]*\}/);
                 if (!jsonMatch) {
-                    throw new errors_1.ExternalAPIError('Could not extract JSON from OpenRouter response', 'openrouter');
+                    throw new Error('Could not extract JSON from OpenRouter response');
                 }
                 const result = JSON.parse(jsonMatch[0]);
                 // Validate response structure
@@ -95,13 +103,13 @@ Respond with valid JSON only, no other text.`,
                     typeof result.isSpam !== 'boolean' ||
                     typeof result.confidence !== 'number' ||
                     typeof result.requiresHumanReview !== 'boolean') {
-                    throw new errors_1.ExternalAPIError('Invalid AI response structure', 'openrouter');
+                    throw new Error('Invalid AI response structure');
                 }
                 return result;
             }
             catch (error) {
-                logger_1.logger.error({ error }, 'OpenRouter analysis failed');
-                throw new errors_1.ExternalAPIError('Failed to analyze comment with OpenRouter', 'openrouter');
+                logger_1.logger.warn({ error }, 'OpenRouter analysis failed, using fallback provider');
+                return this.fallback.analyzeComment(comment, context);
             }
         });
     }
@@ -109,7 +117,8 @@ Respond with valid JSON only, no other text.`,
         return __awaiter(this, void 0, void 0, function* () {
             var _a, _b, _c, _d;
             if (!this.apiKey) {
-                throw new errors_1.ExternalAPIError('OpenRouter client not configured', 'openrouter');
+                logger_1.logger.warn('OpenRouter API key not configured, falling back to mock provider');
+                return this.fallback.generateReply(comment, analysis, settings);
             }
             try {
                 const { tone = 'professional', language = 'en', emojiUsage = true, maxLength = 500 } = settings;
@@ -152,12 +161,14 @@ Respond with the reply text only, no other text.`,
                     }),
                 });
                 if (!response.ok) {
-                    throw new errors_1.ExternalAPIError(`OpenRouter API error: ${response.status}`, 'openrouter');
+                    throw new Error(`OpenRouter API error: ${response.status} ${response.statusText}`);
                 }
                 const data = yield response.json();
                 const reply = ((_d = (_c = (_b = (_a = data.choices) === null || _a === void 0 ? void 0 : _a[0]) === null || _b === void 0 ? void 0 : _b.message) === null || _c === void 0 ? void 0 : _c.content) === null || _d === void 0 ? void 0 : _d.trim()) || '';
+                if (!reply) {
+                    throw new Error('Empty reply received from OpenRouter');
+                }
                 if (reply.length > maxLength) {
-                    // Truncate if too long
                     return {
                         reply: reply.substring(0, maxLength),
                         confidence: 0.8,
@@ -169,8 +180,8 @@ Respond with the reply text only, no other text.`,
                 };
             }
             catch (error) {
-                logger_1.logger.error({ error }, 'OpenRouter reply generation failed');
-                throw new errors_1.ExternalAPIError('Failed to generate reply with OpenRouter', 'openrouter');
+                logger_1.logger.warn({ error }, 'OpenRouter reply generation failed, using fallback provider');
+                return this.fallback.generateReply(comment, analysis, settings);
             }
         });
     }

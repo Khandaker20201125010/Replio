@@ -42,6 +42,9 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
+// Webhooks must NOT be rate-limited to prevent Meta delivery retries/disabling
+app.use("/api/webhook", webhookRoutes);
+
 // Rate limiting
 app.use("/api/auth", authLimiter);
 app.use("/api", apiLimiter);
@@ -120,7 +123,6 @@ app.get("/api/health", (req, res) => {
 // API routes
 app.use("/api/auth", authRoutes);
 app.use("/api/facebook", facebookRoutes);
-app.use("/api/webhook", webhookRoutes);
 app.use("/api/comments", commentsRoutes);
 app.use("/api/replies", repliesRoutes);
 app.use("/api/settings", settingsRoutes);

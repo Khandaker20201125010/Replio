@@ -15,7 +15,7 @@ import type {
 export function getOAuthUrl(state?: string): string {
   const scope =
     env.META_OAUTH_SCOPES ||
-    "pages_show_list,pages_read_engagement,pages_manage_posts,pages_manage_engagement";
+    "pages_show_list,pages_read_engagement,pages_manage_posts,pages_manage_engagement,pages_manage_metadata,pages_read_user_content";
 
   if (!env.META_APP_ID || !env.META_REDIRECT_URI) {
     throw new Error("META_APP_ID and META_REDIRECT_URI must be configured");
@@ -58,6 +58,38 @@ export async function exchangeCodeForToken(code: string): Promise<string> {
   } catch (error) {
     logger.error({ error }, "Facebook token exchange failed");
     throw new ExternalAPIError("Failed to exchange code for token", "facebook");
+  }
+}
+
+export async function getLongLivedUserToken(
+  shortLivedToken: string,
+): Promise<string> {
+  try {
+    const response = await axios.get(
+      "https://graph.facebook.com/v18.0/oauth/access_token",
+      {
+        params: {
+          grant_type: "fb_exchange_token",
+          client_id: env.META_APP_ID,
+          client_secret: env.META_APP_SECRET,
+          fb_exchange_token: shortLivedToken,
+        },
+      },
+    );
+
+    if (response.data?.access_token) {
+      logger.info(
+        "Successfully exchanged short-lived token for long-lived user token",
+      );
+      return response.data.access_token;
+    }
+    return shortLivedToken;
+  } catch (error) {
+    logger.warn(
+      { error },
+      "Failed to exchange for long-lived token, falling back to short-lived token",
+    );
+    return shortLivedToken;
   }
 }
 
@@ -142,8 +174,19 @@ export async function connectPage(
   }
 
   // Subscribe page to app webhooks for comments
+  await subscribePageToWebhooks(pageId, pageAccessToken);
+
+  logger.info({ userId, pageId }, "Facebook page connected successfully");
+
+  return page;
+}
+
+export async function subscribePageToWebhooks(
+  pageId: string,
+  pageAccessToken: string,
+): Promise<{ success: boolean; data?: any; error?: string }> {
   try {
-    await axios.post(
+    const response = await axios.post(
       `https://graph.facebook.com/v18.0/${pageId}/subscribed_apps`,
       null,
       {
@@ -153,26 +196,79 @@ export async function connectPage(
         },
       },
     );
-    logger.info({ pageId }, "Facebook page subscribed to webhooks successfully");
-  } catch (subErr) {
-    logger.warn({ subErr, pageId }, "Failed to subscribe page to webhooks");
+    logger.info(
+      { pageId, data: response.data },
+      "Facebook page subscribed to webhooks successfully",
+    );
+    return { success: true, data: response.data };
+  } catch (subErr: any) {
+    const errorMsg =
+      subErr?.response?.data?.error?.message ||
+      subErr?.message ||
+      "Unknown error";
+    logger.warn(
+      { pageId, error: subErr?.response?.data || subErr?.message },
+      "Failed to subscribe page to webhooks",
+    );
+    return { success: false, error: errorMsg };
   }
-
-  logger.info({ userId, pageId }, "Facebook page connected successfully");
-
-  return page;
 }
 
-export async function disconnectPage(userId: string, pageId: string) {
+export async function resubscribePage(userId: string, pageIdOrId: string) {
   const page = await prisma.facebookPage.findFirst({
     where: {
       userId,
-      pageId,
+      OR: [{ id: pageIdOrId }, { pageId: pageIdOrId }],
+      isConnected: true,
+    },
+  });
+
+  if (!page) {
+    throw new NotFoundError("Connected page not found");
+  }
+
+  const result = await subscribePageToWebhooks(
+    page.pageId,
+    page.pageAccessToken,
+  );
+  return {
+    pageId: page.pageId,
+    pageName: page.pageName,
+    ...result,
+  };
+}
+
+export async function disconnectPage(userId: string, pageIdOrId: string) {
+  const page = await prisma.facebookPage.findFirst({
+    where: {
+      userId,
+      OR: [{ id: pageIdOrId }, { pageId: pageIdOrId }],
     },
   });
 
   if (!page) {
     throw new NotFoundError("Page not found");
+  }
+
+  // Attempt to unsubscribe page from app webhooks on Meta
+  try {
+    await axios.delete(
+      `https://graph.facebook.com/v18.0/${page.pageId}/subscribed_apps`,
+      {
+        params: {
+          access_token: page.pageAccessToken,
+        },
+      },
+    );
+    logger.info(
+      { pageId: page.pageId },
+      "Unsubscribed page from webhooks on Meta",
+    );
+  } catch (subErr: any) {
+    logger.warn(
+      { pageId: page.pageId, error: subErr?.response?.data || subErr?.message },
+      "Could not unsubscribe page from webhooks on Meta (token may be expired or already revoked)",
+    );
   }
 
   await prisma.facebookPage.update({
@@ -182,7 +278,10 @@ export async function disconnectPage(userId: string, pageId: string) {
     },
   });
 
-  logger.info({ userId, pageId }, "Facebook page disconnected successfully");
+  logger.info(
+    { userId, pageId: page.pageId },
+    "Facebook page disconnected successfully",
+  );
 }
 
 export async function getUserConnectedPages(userId: string) {
@@ -197,11 +296,11 @@ export async function getUserConnectedPages(userId: string) {
   });
 }
 
-export async function getPageById(userId: string, pageId: string) {
+export async function getPageById(userId: string, pageIdOrId: string) {
   const page = await prisma.facebookPage.findFirst({
     where: {
       userId,
-      pageId,
+      OR: [{ id: pageIdOrId }, { pageId: pageIdOrId }],
       isConnected: true,
     },
   });
@@ -212,3 +311,4 @@ export async function getPageById(userId: string, pageId: string) {
 
   return page;
 }
+

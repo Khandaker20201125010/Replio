@@ -12,5 +12,6 @@ router.post("/pages/connect", auth_middleware_1.authenticate, facebook_controlle
 router.delete("/pages/:pageId", auth_middleware_1.authenticate, facebook_controller_1.disconnectPageController);
 router.get("/pages", auth_middleware_1.authenticate, facebook_controller_1.getConnectedPagesController);
 router.get("/pages/:pageId", auth_middleware_1.authenticate, facebook_controller_1.getPageController);
+router.post("/pages/:pageId/subscribe", auth_middleware_1.authenticate, facebook_controller_1.resubscribePageController);
 exports.default = router;
 //# sourceMappingURL=facebook.route.js.map

@@ -37,13 +37,10 @@ export async function handleWebhookEventController(
   try {
     const payload = req.body;
 
-    // Acknowledge immediately
-    res.status(200).send("OK");
+    // Process event before returning response to ensure completion on serverless runtimes
+    await processWebhookEvent(payload);
 
-    // Process asynchronously
-    processWebhookEvent(payload).catch((error) => {
-      logger.error({ error }, "Async webhook event processing failed");
-    });
+    res.status(200).send("OK");
   } catch (error) {
     logger.error({ error }, "Webhook event handling failed");
     // Still return 200 to avoid Facebook retry loops

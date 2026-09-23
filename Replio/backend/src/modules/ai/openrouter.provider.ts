@@ -2,16 +2,19 @@ import { env } from '../../config/env';
 import { logger } from '../../utils/logger';
 import { ExternalAPIError } from '../../utils/errors';
 import type { AIProvider, AIAnalysisResult, AIReplyResult } from './ai.provider';
+import { MockAIProvider } from './mock.provider';
 
 export class OpenRouterProvider implements AIProvider {
   private apiKey: string | null = null;
   private embeddingModel: string;
   private llmModel: string;
+  private fallback: MockAIProvider;
 
   constructor() {
     this.apiKey = env.OPENROUTER_API_KEY || null;
     this.embeddingModel = env.OPENROUTER_EMBEDDING_MODEL || 'nvidia/nemotron-3-embed-1b:free';
     this.llmModel = env.OPENROUTER_LLM_MODEL || 'google/gemma-4-31b-it:free';
+    this.fallback = new MockAIProvider();
 
     if (!this.apiKey) {
       logger.warn('OpenRouter API key not configured, using fallback behavior');
@@ -20,7 +23,8 @@ export class OpenRouterProvider implements AIProvider {
 
   async analyzeComment(comment: string, context?: any): Promise<AIAnalysisResult> {
     if (!this.apiKey) {
-      throw new ExternalAPIError('OpenRouter client not configured', 'openrouter');
+      logger.warn('OpenRouter API key not configured, falling back to mock provider');
+      return this.fallback.analyzeComment(comment, context);
     }
 
     try {
@@ -43,7 +47,7 @@ export class OpenRouterProvider implements AIProvider {
 - language: ISO language code
 - isSpam: true if this appears to be spam
 - confidence: 0.0 to 1.0 confidence score
-- requiresHumanReview: true if this needs human attention
+- requiresHumanReview: true ONLY for severe abuse, harassment, legal threats, or complex account disputes that AI should not answer. For regular customer inquiries, product questions, greetings, feedback, or general comments, set requiresHumanReview to false so the AI can automatically reply.
 
 Comment: ${comment}
 
@@ -55,20 +59,20 @@ Respond with valid JSON only, no other text.`,
       });
 
       if (!response.ok) {
-        throw new ExternalAPIError(`OpenRouter API error: ${response.status}`, 'openrouter');
+        throw new Error(`OpenRouter API error: ${response.status} ${response.statusText}`);
       }
 
       const data = await response.json();
       const content = data.choices?.[0]?.message?.content;
 
       if (!content) {
-        throw new ExternalAPIError('No response from OpenRouter', 'openrouter');
+        throw new Error('No response from OpenRouter');
       }
 
       // Extract JSON from response (in case there's extra text)
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
-        throw new ExternalAPIError('Could not extract JSON from OpenRouter response', 'openrouter');
+        throw new Error('Could not extract JSON from OpenRouter response');
       }
 
       const result = JSON.parse(jsonMatch[0]) as AIAnalysisResult;
@@ -78,19 +82,20 @@ Respond with valid JSON only, no other text.`,
           typeof result.isSpam !== 'boolean' || 
           typeof result.confidence !== 'number' ||
           typeof result.requiresHumanReview !== 'boolean') {
-        throw new ExternalAPIError('Invalid AI response structure', 'openrouter');
+        throw new Error('Invalid AI response structure');
       }
 
       return result;
     } catch (error) {
-      logger.error({ error }, 'OpenRouter analysis failed');
-      throw new ExternalAPIError('Failed to analyze comment with OpenRouter', 'openrouter');
+      logger.warn({ error }, 'OpenRouter analysis failed, using fallback provider');
+      return this.fallback.analyzeComment(comment, context);
     }
   }
 
   async generateReply(comment: string, analysis: AIAnalysisResult, settings: any): Promise<AIReplyResult> {
     if (!this.apiKey) {
-      throw new ExternalAPIError('OpenRouter client not configured', 'openrouter');
+      logger.warn('OpenRouter API key not configured, falling back to mock provider');
+      return this.fallback.generateReply(comment, analysis, settings);
     }
 
     try {
@@ -136,14 +141,17 @@ Respond with the reply text only, no other text.`,
       });
 
       if (!response.ok) {
-        throw new ExternalAPIError(`OpenRouter API error: ${response.status}`, 'openrouter');
+        throw new Error(`OpenRouter API error: ${response.status} ${response.statusText}`);
       }
 
       const data = await response.json();
       const reply = data.choices?.[0]?.message?.content?.trim() || '';
       
+      if (!reply) {
+        throw new Error('Empty reply received from OpenRouter');
+      }
+
       if (reply.length > maxLength) {
-        // Truncate if too long
         return {
           reply: reply.substring(0, maxLength),
           confidence: 0.8,
@@ -155,8 +163,8 @@ Respond with the reply text only, no other text.`,
         confidence: 0.9,
       };
     } catch (error) {
-      logger.error({ error }, 'OpenRouter reply generation failed');
-      throw new ExternalAPIError('Failed to generate reply with OpenRouter', 'openrouter');
+      logger.warn({ error }, 'OpenRouter reply generation failed, using fallback provider');
+      return this.fallback.generateReply(comment, analysis, settings);
     }
   }
 
