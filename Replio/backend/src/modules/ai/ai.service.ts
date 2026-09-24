@@ -49,5 +49,5 @@ export async function validateReply(
   settings: any,
 ): Promise<boolean> {
   const provider = getAIProvider(settings);
-  return await provider.validateReply(reply);
+  return await provider.validateReply(reply, settings);
 }

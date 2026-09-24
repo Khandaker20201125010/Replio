@@ -47,7 +47,7 @@ function generateReply(comment, analysis, settings) {
 function validateReply(reply, settings) {
     return __awaiter(this, void 0, void 0, function* () {
         const provider = getAIProvider(settings);
-        return yield provider.validateReply(reply);
+        return yield provider.validateReply(reply, settings);
     });
 }
 //# sourceMappingURL=ai.service.js.map

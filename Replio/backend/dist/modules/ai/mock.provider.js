@@ -104,13 +104,14 @@ class MockAIProvider {
             };
         });
     }
-    validateReply(reply) {
+    validateReply(reply, settings) {
         return __awaiter(this, void 0, void 0, function* () {
+            const maxLength = (settings === null || settings === void 0 ? void 0 : settings.maxLength) || 500;
             // Basic validation
             if (!reply || reply.trim().length === 0) {
                 return false;
             }
-            if (reply.length > 500) {
+            if (reply.length > maxLength) {
                 return false;
             }
             // Check for obviously unsafe content

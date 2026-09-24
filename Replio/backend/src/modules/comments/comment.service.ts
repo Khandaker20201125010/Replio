@@ -280,24 +280,23 @@ export async function processComment(commentId: string) {
     }
 
     // 5. Determine if human review is required
-    // If auto-reply is enabled (humanApprovalMode is false), do NOT block standard comments.
-    // Only require human review if the user explicitly enabled requireHumanReview,
-    // a rule matched with HUMAN_REVIEW, or severe abuse/negative safety issue was detected.
+    // When humanApprovalMode is false (auto-reply ON), the user has explicitly chosen
+    // to auto-reply. Only a manually-configured HUMAN_REVIEW rule or spam-review setting
+    // can override this — the AI's own requiresHumanReview flag should NOT silently
+    // block auto-replies when the user has turned auto-reply ON.
     let requiresReview = false;
     if (aiSettings.humanApprovalMode) {
-      // User explicitly configured "Require Human Review" in Settings
+      // User explicitly configured "Require Human Review" in Settings — always respect this
       requiresReview = true;
     } else if (matchingRule?.action === "HUMAN_REVIEW") {
       // A configured rule explicitly triggered human review
       requiresReview = true;
     } else if (analysis.isSpam && aiSettings.spamHandling === "review") {
-      requiresReview = true;
-    } else if (
-      analysis.requiresHumanReview &&
-      analysis.sentiment === "negative"
-    ) {
+      // Spam handling set to review (not ignore) — queue for review
       requiresReview = true;
     }
+    // NOTE: We intentionally do NOT block auto-reply based on analysis.requiresHumanReview
+    // alone when humanApprovalMode is false. The user's explicit auto-reply preference wins.
 
     // 6. Create reply record
     const reply = await prisma.reply.create({

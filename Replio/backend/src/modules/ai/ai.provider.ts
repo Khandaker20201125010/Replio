@@ -19,5 +19,5 @@ export interface AIProvider {
     analysis: AIAnalysisResult,
     settings: any,
   ): Promise<AIReplyResult>;
-  validateReply(reply: string): Promise<boolean>;
+  validateReply(reply: string, settings?: any): Promise<boolean>;
 }

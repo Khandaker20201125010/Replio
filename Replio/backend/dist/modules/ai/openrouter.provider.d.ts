@@ -7,6 +7,6 @@ export declare class OpenRouterProvider implements AIProvider {
     constructor();
     analyzeComment(comment: string, context?: any): Promise<AIAnalysisResult>;
     generateReply(comment: string, analysis: AIAnalysisResult, settings: any): Promise<AIReplyResult>;
-    validateReply(reply: string): Promise<boolean>;
+    validateReply(reply: string, settings?: any): Promise<boolean>;
 }
 //# sourceMappingURL=openrouter.provider.d.ts.map

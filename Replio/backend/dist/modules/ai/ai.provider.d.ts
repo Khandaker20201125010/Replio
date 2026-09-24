@@ -13,6 +13,6 @@ export interface AIReplyResult {
 export interface AIProvider {
     analyzeComment(comment: string, context?: any): Promise<AIAnalysisResult>;
     generateReply(comment: string, analysis: AIAnalysisResult, settings: any): Promise<AIReplyResult>;
-    validateReply(reply: string): Promise<boolean>;
+    validateReply(reply: string, settings?: any): Promise<boolean>;
 }
 //# sourceMappingURL=ai.provider.d.ts.map

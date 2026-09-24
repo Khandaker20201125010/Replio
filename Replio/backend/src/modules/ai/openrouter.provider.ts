@@ -168,13 +168,15 @@ Respond with the reply text only, no other text.`,
     }
   }
 
-  async validateReply(reply: string): Promise<boolean> {
+  async validateReply(reply: string, settings?: any): Promise<boolean> {
+    const maxLength = settings?.maxLength || 500;
+
     // Basic validation
     if (!reply || reply.trim().length === 0) {
       return false;
     }
 
-    if (reply.length > 500) {
+    if (reply.length > maxLength) {
       return false;
     }
 
