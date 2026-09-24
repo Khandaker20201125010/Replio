@@ -40,6 +40,8 @@ app.use((0, cors_1.default)({
 app.use(express_1.default.json());
 app.use(express_1.default.urlencoded({ extended: true }));
 app.use((0, cookie_parser_1.default)());
+// Webhooks must NOT be rate-limited to prevent Meta delivery retries/disabling
+app.use("/api/webhook", webhook_route_1.default);
 // Rate limiting
 app.use("/api/auth", rate_limit_middleware_1.authLimiter);
 app.use("/api", rate_limit_middleware_1.apiLimiter);
@@ -115,7 +117,6 @@ app.get("/api/health", (req, res) => {
 // API routes
 app.use("/api/auth", auth_route_1.default);
 app.use("/api/facebook", facebook_route_1.default);
-app.use("/api/webhook", webhook_route_1.default);
 app.use("/api/comments", comment_route_1.default);
 app.use("/api/replies", reply_route_1.default);
 app.use("/api/settings", settings_route_1.default);

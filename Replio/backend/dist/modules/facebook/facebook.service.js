@@ -14,6 +14,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getOAuthUrl = getOAuthUrl;
 exports.exchangeCodeForToken = exchangeCodeForToken;
+exports.getLongLivedUserToken = getLongLivedUserToken;
 exports.getUserPages = getUserPages;
 exports.verifyPage = verifyPage;
 exports.connectPage = connectPage;
@@ -60,6 +61,30 @@ function exchangeCodeForToken(code) {
         catch (error) {
             logger_1.logger.error({ error }, "Facebook token exchange failed");
             throw new errors_1.ExternalAPIError("Failed to exchange code for token", "facebook");
+        }
+    });
+}
+function getLongLivedUserToken(shortLivedToken) {
+    return __awaiter(this, void 0, void 0, function* () {
+        var _a;
+        try {
+            const response = yield axios_1.default.get("https://graph.facebook.com/v18.0/oauth/access_token", {
+                params: {
+                    grant_type: "fb_exchange_token",
+                    client_id: env_1.env.META_APP_ID,
+                    client_secret: env_1.env.META_APP_SECRET,
+                    fb_exchange_token: shortLivedToken,
+                },
+            });
+            if ((_a = response.data) === null || _a === void 0 ? void 0 : _a.access_token) {
+                logger_1.logger.info("Successfully exchanged short-lived token for long-lived user token");
+                return response.data.access_token;
+            }
+            return shortLivedToken;
+        }
+        catch (error) {
+            logger_1.logger.warn({ error }, "Failed to exchange for long-lived token, falling back to short-lived token");
+            return shortLivedToken;
         }
     });
 }
@@ -157,12 +182,12 @@ function subscribePageToWebhooks(pageId, pageAccessToken) {
         }
     });
 }
-function resubscribePage(userId, pageId) {
+function resubscribePage(userId, pageIdOrId) {
     return __awaiter(this, void 0, void 0, function* () {
         const page = yield prisma_1.default.facebookPage.findFirst({
             where: {
                 userId,
-                pageId,
+                OR: [{ id: pageIdOrId }, { pageId: pageIdOrId }],
                 isConnected: true,
             },
         });
@@ -173,16 +198,29 @@ function resubscribePage(userId, pageId) {
         return Object.assign({ pageId: page.pageId, pageName: page.pageName }, result);
     });
 }
-function disconnectPage(userId, pageId) {
+function disconnectPage(userId, pageIdOrId) {
     return __awaiter(this, void 0, void 0, function* () {
+        var _a;
         const page = yield prisma_1.default.facebookPage.findFirst({
             where: {
                 userId,
-                pageId,
+                OR: [{ id: pageIdOrId }, { pageId: pageIdOrId }],
             },
         });
         if (!page) {
             throw new errors_1.NotFoundError("Page not found");
+        }
+        // Attempt to unsubscribe page from app webhooks on Meta
+        try {
+            yield axios_1.default.delete(`https://graph.facebook.com/v18.0/${page.pageId}/subscribed_apps`, {
+                params: {
+                    access_token: page.pageAccessToken,
+                },
+            });
+            logger_1.logger.info({ pageId: page.pageId }, "Unsubscribed page from webhooks on Meta");
+        }
+        catch (subErr) {
+            logger_1.logger.warn({ pageId: page.pageId, error: ((_a = subErr === null || subErr === void 0 ? void 0 : subErr.response) === null || _a === void 0 ? void 0 : _a.data) || (subErr === null || subErr === void 0 ? void 0 : subErr.message) }, "Could not unsubscribe page from webhooks on Meta (token may be expired or already revoked)");
         }
         yield prisma_1.default.facebookPage.update({
             where: { id: page.id },
@@ -190,7 +228,7 @@ function disconnectPage(userId, pageId) {
                 isConnected: false,
             },
         });
-        logger_1.logger.info({ userId, pageId }, "Facebook page disconnected successfully");
+        logger_1.logger.info({ userId, pageId: page.pageId }, "Facebook page disconnected successfully");
     });
 }
 function getUserConnectedPages(userId) {
@@ -206,12 +244,12 @@ function getUserConnectedPages(userId) {
         });
     });
 }
-function getPageById(userId, pageId) {
+function getPageById(userId, pageIdOrId) {
     return __awaiter(this, void 0, void 0, function* () {
         const page = yield prisma_1.default.facebookPage.findFirst({
             where: {
                 userId,
-                pageId,
+                OR: [{ id: pageIdOrId }, { pageId: pageIdOrId }],
                 isConnected: true,
             },
         });

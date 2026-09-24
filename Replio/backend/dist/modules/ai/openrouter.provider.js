@@ -74,7 +74,7 @@ class OpenRouterProvider {
 - language: ISO language code
 - isSpam: true if this appears to be spam
 - confidence: 0.0 to 1.0 confidence score
-- requiresHumanReview: true if this needs human attention
+- requiresHumanReview: true ONLY for severe abuse, harassment, legal threats, or complex account disputes that AI should not answer. For regular customer inquiries, product questions, greetings, feedback, or general comments, set requiresHumanReview to false so the AI can automatically reply.
 
 Comment: ${comment}
 

@@ -8,6 +8,9 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.initiateOAuthController = initiateOAuthController;
 exports.oauthCallbackController = oauthCallbackController;
@@ -19,6 +22,7 @@ exports.resubscribePageController = resubscribePageController;
 const facebook_service_1 = require("./facebook.service");
 const logger_1 = require("../../utils/logger");
 const env_1 = require("../../config/env");
+const prisma_1 = __importDefault(require("../../config/prisma"));
 function getValidFrontendUrl(stateOrigin) {
     if (stateOrigin) {
         try {
@@ -109,7 +113,10 @@ function oauthCallbackController(req, res) {
                 return;
             }
             // Exchange code for user access token
-            const userAccessToken = yield (0, facebook_service_1.exchangeCodeForToken)(code);
+            const shortLivedToken = yield (0, facebook_service_1.exchangeCodeForToken)(code);
+            // Exchange short-lived user token for long-lived user token (60-day expiry).
+            // This guarantees that all Page Access Tokens fetched via /me/accounts are permanent (never expire)!
+            const userAccessToken = yield (0, facebook_service_1.getLongLivedUserToken)(shortLivedToken);
             // Get user's Facebook pages
             const pagesResponse = yield (0, facebook_service_1.getUserPages)(userAccessToken);
             if (!pagesResponse.data || pagesResponse.data.length === 0) {
@@ -192,7 +199,13 @@ function getConnectedPagesController(req, res) {
     return __awaiter(this, void 0, void 0, function* () {
         try {
             const userId = req.user.userId;
-            const pages = yield (0, facebook_service_1.getUserConnectedPages)(userId);
+            const [pages, aiSettings] = yield Promise.all([
+                (0, facebook_service_1.getUserConnectedPages)(userId),
+                prisma_1.default.aISettings.findUnique({ where: { userId } }),
+            ]);
+            const autoReplyEnabled = aiSettings
+                ? !aiSettings.humanApprovalMode && aiSettings.status === "ACTIVE"
+                : true;
             res.status(200).json({
                 success: true,
                 data: {
@@ -201,6 +214,8 @@ function getConnectedPagesController(req, res) {
                         pageId: page.pageId,
                         pageName: page.pageName,
                         isConnected: page.isConnected,
+                        isActive: page.isConnected,
+                        autoReplyEnabled,
                         createdAt: page.createdAt,
                     })),
                 },

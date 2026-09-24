@@ -41,10 +41,11 @@ function processWebhookEvent(payload) {
             for (const change of entry.changes) {
                 if ((change.field === "feed" || change.field === "comments") &&
                     change.value) {
-                    // If feed event, only process comment items
+                    // If feed event, only ignore if it's definitely not a comment (no comment_id and item is not comment)
                     if (change.field === "feed" &&
                         change.value.item &&
-                        change.value.item !== "comment") {
+                        change.value.item !== "comment" &&
+                        !change.value.comment_id) {
                         logger_1.logger.info({ item: change.value.item }, "Ignoring non-comment feed item");
                         continue;
                     }
@@ -72,17 +73,43 @@ function handleCommentEvent(event, entryPageId) {
                 logger_1.logger.info({ event }, "Missing comment_id or message, skipping");
                 return;
             }
-            // Extract page ID from post_id or entryPageId
+            // Extract page ID from entryPageId, post_id, or comment_id
             let pageId = entryPageId;
             if (!pageId && post_id) {
                 pageId = post_id.split("_")[0];
             }
             // Find connected page
-            const facebookPage = yield prisma_1.default.facebookPage.findFirst({
-                where: Object.assign(Object.assign({}, (pageId ? { pageId } : {})), { isConnected: true }),
-            });
+            let facebookPage = null;
+            if (pageId) {
+                facebookPage = yield prisma_1.default.facebookPage.findFirst({
+                    where: {
+                        pageId: String(pageId),
+                        isConnected: true,
+                    },
+                });
+            }
+            // Fallback: extract page ID prefix from post_id if not found yet
+            if (!facebookPage && post_id && post_id.includes("_")) {
+                const extractedPageId = post_id.split("_")[0];
+                facebookPage = yield prisma_1.default.facebookPage.findFirst({
+                    where: {
+                        pageId: String(extractedPageId),
+                        isConnected: true,
+                    },
+                });
+            }
+            // Fallback: extract page ID prefix from comment_id if not found yet
+            if (!facebookPage && comment_id && comment_id.includes("_")) {
+                const extractedPageId = comment_id.split("_")[0];
+                facebookPage = yield prisma_1.default.facebookPage.findFirst({
+                    where: {
+                        pageId: String(extractedPageId),
+                        isConnected: true,
+                    },
+                });
+            }
             if (!facebookPage) {
-                logger_1.logger.warn({ pageId, entryPageId }, "No connected page found for webhook event");
+                logger_1.logger.warn({ pageId, entryPageId, post_id, comment_id }, "No connected page found for webhook event");
                 return;
             }
             // CRITICAL: Ignore comments made by the Page itself (prevents infinite reply loop!)
