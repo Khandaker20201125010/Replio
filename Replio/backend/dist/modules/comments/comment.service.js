@@ -15,7 +15,10 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.getComments = getComments;
 exports.getCommentById = getCommentById;
 exports.updateCommentStatus = updateCommentStatus;
+exports.storeNewComment = storeNewComment;
+exports.syncComments = syncComments;
 exports.processComment = processComment;
+const axios_1 = __importDefault(require("axios"));
 const prisma_1 = __importDefault(require("../../config/prisma"));
 const errors_1 = require("../../utils/errors");
 const logger_1 = require("../../utils/logger");
@@ -120,6 +123,117 @@ function updateCommentStatus(userId, commentId, data) {
         });
         logger_1.logger.info({ userId, commentId, status: data.status }, "Comment status updated");
         return updated;
+    });
+}
+/**
+ * Stores a comment if it is not already known. Returns null when the comment
+ * already exists so callers can skip re-processing it.
+ */
+function storeNewComment(input) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const existing = yield prisma_1.default.comment.findUnique({
+            where: { commentId: input.commentId },
+        });
+        if (existing) {
+            return null;
+        }
+        return prisma_1.default.comment.create({
+            data: {
+                commentId: input.commentId,
+                facebookPageId: input.facebookPageId,
+                postId: input.postId,
+                userId: input.authorId,
+                userName: input.authorName,
+                userMessage: input.message,
+                status: "PENDING",
+                createdTime: input.createdTime,
+            },
+        });
+    });
+}
+/**
+ * Pulls recent post comments straight from the Graph API and stores/processes
+ * the ones that are missing locally. Keeps the dashboard in sync when webhook
+ * deliveries never arrive (app not subscribed, downtime, development mode).
+ */
+function syncComments(userId_1) {
+    return __awaiter(this, arguments, void 0, function* (userId, options = {}) {
+        var _a, _b, _c, _d, _e, _f, _g, _h, _j;
+        var _k, _l, _m, _o, _p;
+        const { pageIdOrId, postLimit = 10, commentLimit = 50 } = options;
+        const pages = yield prisma_1.default.facebookPage.findMany({
+            where: Object.assign({ userId, isConnected: true }, (pageIdOrId
+                ? { OR: [{ id: pageIdOrId }, { pageId: pageIdOrId }] }
+                : {})),
+        });
+        if (pages.length === 0) {
+            throw new errors_1.NotFoundError("No connected Facebook page found");
+        }
+        const results = [];
+        for (const page of pages) {
+            const result = {
+                pageId: page.pageId,
+                pageName: page.pageName,
+                fetched: 0,
+                imported: 0,
+                processed: 0,
+            };
+            try {
+                const response = yield axios_1.default.get(`https://graph.facebook.com/v18.0/${page.pageId}/posts`, {
+                    params: {
+                        fields: `id,created_time,comments.limit(${commentLimit}){id,message,created_time,from}`,
+                        limit: postLimit,
+                        access_token: page.pageAccessToken,
+                    },
+                });
+                const posts = (_k = (_a = response.data) === null || _a === void 0 ? void 0 : _a.data) !== null && _k !== void 0 ? _k : [];
+                for (const post of posts) {
+                    const comments = (_l = (_b = post.comments) === null || _b === void 0 ? void 0 : _b.data) !== null && _l !== void 0 ? _l : [];
+                    result.fetched += comments.length;
+                    for (const fbComment of comments) {
+                        if (!fbComment.message || !fbComment.id) {
+                            continue;
+                        }
+                        // Never ingest the page's own comments — they would trigger replies to ourselves
+                        if (String((_m = (_c = fbComment.from) === null || _c === void 0 ? void 0 : _c.id) !== null && _m !== void 0 ? _m : "") === String(page.pageId)) {
+                            continue;
+                        }
+                        const stored = yield storeNewComment({
+                            commentId: fbComment.id,
+                            facebookPageId: page.id,
+                            postId: post.id,
+                            authorId: (_o = (_d = fbComment.from) === null || _d === void 0 ? void 0 : _d.id) !== null && _o !== void 0 ? _o : null,
+                            authorName: (_p = (_e = fbComment.from) === null || _e === void 0 ? void 0 : _e.name) !== null && _p !== void 0 ? _p : null,
+                            message: fbComment.message,
+                            createdTime: fbComment.created_time
+                                ? new Date(fbComment.created_time)
+                                : new Date(),
+                        });
+                        if (!stored) {
+                            continue;
+                        }
+                        result.imported += 1;
+                        try {
+                            yield processComment(stored.id);
+                            result.processed += 1;
+                        }
+                        catch (error) {
+                            logger_1.logger.error({ error, commentId: stored.id }, "Synced comment processing failed");
+                        }
+                    }
+                }
+            }
+            catch (error) {
+                result.error =
+                    ((_h = (_g = (_f = error === null || error === void 0 ? void 0 : error.response) === null || _f === void 0 ? void 0 : _f.data) === null || _g === void 0 ? void 0 : _g.error) === null || _h === void 0 ? void 0 : _h.message) ||
+                        (error === null || error === void 0 ? void 0 : error.message) ||
+                        "Failed to fetch comments from Facebook";
+                logger_1.logger.error({ error: ((_j = error === null || error === void 0 ? void 0 : error.response) === null || _j === void 0 ? void 0 : _j.data) || (error === null || error === void 0 ? void 0 : error.message), pageId: page.pageId }, "Comment sync failed for page");
+            }
+            results.push(result);
+        }
+        logger_1.logger.info({ userId, results }, "Comment sync finished");
+        return { pages: results };
     });
 }
 function processComment(commentId) {

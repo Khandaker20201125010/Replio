@@ -20,6 +20,17 @@ export declare function subscribePageToWebhooks(pageId: string, pageAccessToken:
     data?: any;
     error?: string;
 }>;
+export declare function getPageWebhookSubscription(pageId: string, pageAccessToken: string): Promise<{
+    subscribed: boolean;
+    fields: string[];
+    error?: string;
+}>;
+export declare function getAppWebhookSubscriptions(): Promise<{
+    configured: boolean;
+    pageFields: string[];
+    callbackUrl?: string;
+    error?: string;
+}>;
 export declare function resubscribePage(userId: string, pageIdOrId: string): Promise<{
     success: boolean;
     data?: any;

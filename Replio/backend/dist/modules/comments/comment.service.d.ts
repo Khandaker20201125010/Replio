@@ -130,6 +130,56 @@ export declare function updateCommentStatus(userId: string, commentId: string, d
     createdAt: Date;
     updatedAt: Date;
 }>;
+/**
+ * Stores a comment if it is not already known. Returns null when the comment
+ * already exists so callers can skip re-processing it.
+ */
+export declare function storeNewComment(input: {
+    commentId: string;
+    facebookPageId: string;
+    postId: string;
+    authorId: string | null;
+    authorName: string | null;
+    message: string;
+    createdTime: Date;
+}): Promise<{
+    id: string;
+    facebookPageId: string;
+    commentId: string;
+    postId: string;
+    userId: string | null;
+    userName: string | null;
+    userMessage: string;
+    createdTime: Date;
+    status: import(".prisma/client").$Enums.CommentStatus;
+    aiIntent: string | null;
+    aiSentiment: string | null;
+    aiLanguage: string | null;
+    aiIsSpam: boolean | null;
+    aiConfidence: number | null;
+    aiRequiresReview: boolean | null;
+    createdAt: Date;
+    updatedAt: Date;
+} | null>;
+/**
+ * Pulls recent post comments straight from the Graph API and stores/processes
+ * the ones that are missing locally. Keeps the dashboard in sync when webhook
+ * deliveries never arrive (app not subscribed, downtime, development mode).
+ */
+export declare function syncComments(userId: string, options?: {
+    pageIdOrId?: string;
+    postLimit?: number;
+    commentLimit?: number;
+}): Promise<{
+    pages: {
+        pageId: string;
+        pageName: string;
+        fetched: number;
+        imported: number;
+        processed: number;
+        error?: string;
+    }[];
+}>;
 export declare function processComment(commentId: string): Promise<{
     facebookPage: {
         id: string;
