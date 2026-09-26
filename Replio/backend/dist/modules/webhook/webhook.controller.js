@@ -10,6 +10,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.verifyWebhookController = verifyWebhookController;
+exports.webhookDiagnosticsController = webhookDiagnosticsController;
 exports.handleWebhookEventController = handleWebhookEventController;
 const webhook_service_1 = require("./webhook.service");
 const logger_1 = require("../../utils/logger");
@@ -27,6 +28,22 @@ function verifyWebhookController(req, res) {
         catch (error) {
             logger_1.logger.error({ error }, "Webhook verification failed");
             res.status(403).send("Verification failed");
+        }
+    });
+}
+function webhookDiagnosticsController(req, res) {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            const userId = req.user.userId;
+            const diagnostics = yield (0, webhook_service_1.getWebhookDiagnostics)(userId);
+            res.status(200).json({
+                success: true,
+                data: diagnostics,
+            });
+        }
+        catch (error) {
+            logger_1.logger.error({ error }, "Webhook diagnostics failed");
+            throw error;
         }
     });
 }

@@ -1,3 +1,4 @@
+import axios from "axios";
 import prisma from "../../config/prisma";
 import { NotFoundError } from "../../utils/errors";
 import { logger } from "../../utils/logger";
@@ -138,6 +139,160 @@ export async function updateCommentStatus(
   );
 
   return updated;
+}
+
+/**
+ * Stores a comment if it is not already known. Returns null when the comment
+ * already exists so callers can skip re-processing it.
+ */
+export async function storeNewComment(input: {
+  commentId: string;
+  facebookPageId: string;
+  postId: string;
+  authorId: string | null;
+  authorName: string | null;
+  message: string;
+  createdTime: Date;
+}) {
+  const existing = await prisma.comment.findUnique({
+    where: { commentId: input.commentId },
+  });
+
+  if (existing) {
+    return null;
+  }
+
+  return prisma.comment.create({
+    data: {
+      commentId: input.commentId,
+      facebookPageId: input.facebookPageId,
+      postId: input.postId,
+      userId: input.authorId,
+      userName: input.authorName,
+      userMessage: input.message,
+      status: "PENDING",
+      createdTime: input.createdTime,
+    },
+  });
+}
+
+/**
+ * Pulls recent post comments straight from the Graph API and stores/processes
+ * the ones that are missing locally. Keeps the dashboard in sync when webhook
+ * deliveries never arrive (app not subscribed, downtime, development mode).
+ */
+export async function syncComments(
+  userId: string,
+  options: { pageIdOrId?: string; postLimit?: number; commentLimit?: number } = {},
+) {
+  const { pageIdOrId, postLimit = 10, commentLimit = 50 } = options;
+
+  const pages = await prisma.facebookPage.findMany({
+    where: {
+      userId,
+      isConnected: true,
+      ...(pageIdOrId
+        ? { OR: [{ id: pageIdOrId }, { pageId: pageIdOrId }] }
+        : {}),
+    },
+  });
+
+  if (pages.length === 0) {
+    throw new NotFoundError("No connected Facebook page found");
+  }
+
+  const results = [];
+
+  for (const page of pages) {
+    const result: {
+      pageId: string;
+      pageName: string;
+      fetched: number;
+      imported: number;
+      processed: number;
+      error?: string;
+    } = {
+      pageId: page.pageId,
+      pageName: page.pageName,
+      fetched: 0,
+      imported: 0,
+      processed: 0,
+    };
+
+    try {
+      const response = await axios.get(
+        `https://graph.facebook.com/v18.0/${page.pageId}/posts`,
+        {
+          params: {
+            fields: `id,created_time,comments.limit(${commentLimit}){id,message,created_time,from}`,
+            limit: postLimit,
+            access_token: page.pageAccessToken,
+          },
+        },
+      );
+
+      const posts: any[] = response.data?.data ?? [];
+
+      for (const post of posts) {
+        const comments: any[] = post.comments?.data ?? [];
+        result.fetched += comments.length;
+
+        for (const fbComment of comments) {
+          if (!fbComment.message || !fbComment.id) {
+            continue;
+          }
+
+          // Never ingest the page's own comments — they would trigger replies to ourselves
+          if (String(fbComment.from?.id ?? "") === String(page.pageId)) {
+            continue;
+          }
+
+          const stored = await storeNewComment({
+            commentId: fbComment.id,
+            facebookPageId: page.id,
+            postId: post.id,
+            authorId: fbComment.from?.id ?? null,
+            authorName: fbComment.from?.name ?? null,
+            message: fbComment.message,
+            createdTime: fbComment.created_time
+              ? new Date(fbComment.created_time)
+              : new Date(),
+          });
+
+          if (!stored) {
+            continue;
+          }
+
+          result.imported += 1;
+
+          try {
+            await processComment(stored.id);
+            result.processed += 1;
+          } catch (error) {
+            logger.error(
+              { error, commentId: stored.id },
+              "Synced comment processing failed",
+            );
+          }
+        }
+      }
+    } catch (error: any) {
+      result.error =
+        error?.response?.data?.error?.message ||
+        error?.message ||
+        "Failed to fetch comments from Facebook";
+      logger.error(
+        { error: error?.response?.data || error?.message, pageId: page.pageId },
+        "Comment sync failed for page",
+      );
+    }
+
+    results.push(result);
+  }
+
+  logger.info({ userId, results }, "Comment sync finished");
+
+  return { pages: results };
 }
 
 export async function processComment(commentId: string) {

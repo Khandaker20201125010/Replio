@@ -6,6 +6,7 @@ const auth_middleware_1 = require("../../middleware/auth.middleware");
 const router = (0, express_1.Router)();
 // Protected routes
 router.get("/", auth_middleware_1.authenticate, comment_controller_1.getCommentsController);
+router.post("/sync", auth_middleware_1.authenticate, comment_controller_1.syncCommentsController);
 router.get("/:commentId", auth_middleware_1.authenticate, comment_controller_1.getCommentByIdController);
 router.put("/:commentId/status", auth_middleware_1.authenticate, comment_controller_1.updateCommentStatusController);
 exports.default = router;

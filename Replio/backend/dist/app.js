@@ -69,6 +69,7 @@ app.get("/", (req, res) => {
             },
             comments: {
                 list: "GET /api/comments",
+                sync: "POST /api/comments/sync",
                 detail: "GET /api/comments/:commentId",
                 updateStatus: "PUT /api/comments/:commentId/status",
             },
@@ -100,6 +101,7 @@ app.get("/", (req, res) => {
             webhook: {
                 verify: "GET /api/webhook",
                 events: "POST /api/webhook",
+                diagnostics: "GET /api/webhook/diagnostics",
             },
         },
     });

@@ -221,6 +221,29 @@ model AnalyticsEvent {
   @@index([createdAt])
 }
 
+model WebhookEvent {
+  id String @id @default(cuid())
+
+  source    String  @default("facebook")
+  objectType String?
+  pageId    String?
+  field     String?
+  verb      String?
+  commentId String?
+
+  payload Json
+
+  status  String  @default("RECEIVED")
+  reason  String?
+  error   String? @db.Text
+
+  createdAt DateTime @default(now())
+
+  @@index([pageId])
+  @@index([status])
+  @@index([createdAt])
+}
+
 model OAuthToken {
   id     String @id @default(cuid())
   userId String

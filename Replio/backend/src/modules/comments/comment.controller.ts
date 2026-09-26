@@ -3,6 +3,7 @@ import {
   getComments,
   getCommentById,
   updateCommentStatus,
+  syncComments,
 } from "./comment.service";
 import {
   getCommentsSchema,
@@ -25,6 +26,27 @@ export async function getCommentsController(
     });
   } catch (error) {
     logger.error({ error }, "Get comments failed");
+    throw error;
+  }
+}
+
+export async function syncCommentsController(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  try {
+    const userId = req.user!.userId;
+    const pageIdOrId =
+      typeof req.body?.pageId === "string" ? req.body.pageId : undefined;
+
+    const result = await syncComments(userId, { pageIdOrId });
+
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    logger.error({ error }, "Sync comments failed");
     throw error;
   }
 }

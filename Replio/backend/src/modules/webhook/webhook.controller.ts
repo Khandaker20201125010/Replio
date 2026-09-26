@@ -1,5 +1,9 @@
 import type { Request, Response } from "express";
-import { verifyWebhook, processWebhookEvent } from "./webhook.service";
+import {
+  verifyWebhook,
+  processWebhookEvent,
+  getWebhookDiagnostics,
+} from "./webhook.service";
 import { logger } from "../../utils/logger";
 
 export async function verifyWebhookController(
@@ -27,6 +31,24 @@ export async function verifyWebhookController(
   } catch (error) {
     logger.error({ error }, "Webhook verification failed");
     res.status(403).send("Verification failed");
+  }
+}
+
+export async function webhookDiagnosticsController(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  try {
+    const userId = req.user!.userId;
+    const diagnostics = await getWebhookDiagnostics(userId);
+
+    res.status(200).json({
+      success: true,
+      data: diagnostics,
+    });
+  } catch (error) {
+    logger.error({ error }, "Webhook diagnostics failed");
+    throw error;
   }
 }
 

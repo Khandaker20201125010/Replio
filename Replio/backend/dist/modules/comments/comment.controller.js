@@ -10,6 +10,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getCommentsController = getCommentsController;
+exports.syncCommentsController = syncCommentsController;
 exports.getCommentByIdController = getCommentByIdController;
 exports.updateCommentStatusController = updateCommentStatusController;
 const comment_service_1 = require("./comment.service");
@@ -28,6 +29,24 @@ function getCommentsController(req, res) {
         }
         catch (error) {
             logger_1.logger.error({ error }, "Get comments failed");
+            throw error;
+        }
+    });
+}
+function syncCommentsController(req, res) {
+    return __awaiter(this, void 0, void 0, function* () {
+        var _a;
+        try {
+            const userId = req.user.userId;
+            const pageIdOrId = typeof ((_a = req.body) === null || _a === void 0 ? void 0 : _a.pageId) === "string" ? req.body.pageId : undefined;
+            const result = yield (0, comment_service_1.syncComments)(userId, { pageIdOrId });
+            res.status(200).json({
+                success: true,
+                data: result,
+            });
+        }
+        catch (error) {
+            logger_1.logger.error({ error }, "Sync comments failed");
             throw error;
         }
     });

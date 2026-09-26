@@ -214,6 +214,81 @@ export async function subscribePageToWebhooks(
   }
 }
 
+export async function getPageWebhookSubscription(
+  pageId: string,
+  pageAccessToken: string,
+): Promise<{ subscribed: boolean; fields: string[]; error?: string }> {
+  try {
+    const response = await axios.get(
+      `https://graph.facebook.com/v18.0/${pageId}/subscribed_apps`,
+      {
+        params: { access_token: pageAccessToken },
+      },
+    );
+
+    const apps: any[] = response.data?.data ?? [];
+    const fields = apps.flatMap((app) => app.subscribed_fields ?? []);
+
+    return { subscribed: apps.length > 0, fields };
+  } catch (error: any) {
+    return {
+      subscribed: false,
+      fields: [],
+      error:
+        error?.response?.data?.error?.message ||
+        error?.message ||
+        "Unknown error",
+    };
+  }
+}
+
+export async function getAppWebhookSubscriptions(): Promise<{
+  configured: boolean;
+  pageFields: string[];
+  callbackUrl?: string;
+  error?: string;
+}> {
+  if (!env.META_APP_ID || !env.META_APP_SECRET) {
+    return {
+      configured: false,
+      pageFields: [],
+      error: "META_APP_ID / META_APP_SECRET are not configured",
+    };
+  }
+
+  try {
+    const response = await axios.get(
+      `https://graph.facebook.com/v18.0/${env.META_APP_ID}/subscriptions`,
+      {
+        params: {
+          access_token: `${env.META_APP_ID}|${env.META_APP_SECRET}`,
+        },
+      },
+    );
+
+    const pageSubscription = (response.data?.data ?? []).find(
+      (sub: any) => sub.object === "page",
+    );
+
+    return {
+      configured: Boolean(pageSubscription),
+      pageFields: (pageSubscription?.fields ?? []).map((f: any) =>
+        typeof f === "string" ? f : f.name,
+      ),
+      callbackUrl: pageSubscription?.callback_url,
+    };
+  } catch (error: any) {
+    return {
+      configured: false,
+      pageFields: [],
+      error:
+        error?.response?.data?.error?.message ||
+        error?.message ||
+        "Unknown error",
+    };
+  }
+}
+
 export async function resubscribePage(userId: string, pageIdOrId: string) {
   const page = await prisma.facebookPage.findFirst({
     where: {

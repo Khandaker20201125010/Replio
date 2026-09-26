@@ -19,6 +19,8 @@ exports.getUserPages = getUserPages;
 exports.verifyPage = verifyPage;
 exports.connectPage = connectPage;
 exports.subscribePageToWebhooks = subscribePageToWebhooks;
+exports.getPageWebhookSubscription = getPageWebhookSubscription;
+exports.getAppWebhookSubscriptions = getAppWebhookSubscriptions;
 exports.resubscribePage = resubscribePage;
 exports.disconnectPage = disconnectPage;
 exports.getUserConnectedPages = getUserConnectedPages;
@@ -179,6 +181,64 @@ function subscribePageToWebhooks(pageId, pageAccessToken) {
                 "Unknown error";
             logger_1.logger.warn({ pageId, error: ((_d = subErr === null || subErr === void 0 ? void 0 : subErr.response) === null || _d === void 0 ? void 0 : _d.data) || (subErr === null || subErr === void 0 ? void 0 : subErr.message) }, "Failed to subscribe page to webhooks");
             return { success: false, error: errorMsg };
+        }
+    });
+}
+function getPageWebhookSubscription(pageId, pageAccessToken) {
+    return __awaiter(this, void 0, void 0, function* () {
+        var _a, _b, _c, _d;
+        var _e;
+        try {
+            const response = yield axios_1.default.get(`https://graph.facebook.com/v18.0/${pageId}/subscribed_apps`, {
+                params: { access_token: pageAccessToken },
+            });
+            const apps = (_e = (_a = response.data) === null || _a === void 0 ? void 0 : _a.data) !== null && _e !== void 0 ? _e : [];
+            const fields = apps.flatMap((app) => { var _a; return (_a = app.subscribed_fields) !== null && _a !== void 0 ? _a : []; });
+            return { subscribed: apps.length > 0, fields };
+        }
+        catch (error) {
+            return {
+                subscribed: false,
+                fields: [],
+                error: ((_d = (_c = (_b = error === null || error === void 0 ? void 0 : error.response) === null || _b === void 0 ? void 0 : _b.data) === null || _c === void 0 ? void 0 : _c.error) === null || _d === void 0 ? void 0 : _d.message) ||
+                    (error === null || error === void 0 ? void 0 : error.message) ||
+                    "Unknown error",
+            };
+        }
+    });
+}
+function getAppWebhookSubscriptions() {
+    return __awaiter(this, void 0, void 0, function* () {
+        var _a, _b, _c, _d;
+        var _e, _f;
+        if (!env_1.env.META_APP_ID || !env_1.env.META_APP_SECRET) {
+            return {
+                configured: false,
+                pageFields: [],
+                error: "META_APP_ID / META_APP_SECRET are not configured",
+            };
+        }
+        try {
+            const response = yield axios_1.default.get(`https://graph.facebook.com/v18.0/${env_1.env.META_APP_ID}/subscriptions`, {
+                params: {
+                    access_token: `${env_1.env.META_APP_ID}|${env_1.env.META_APP_SECRET}`,
+                },
+            });
+            const pageSubscription = ((_e = (_a = response.data) === null || _a === void 0 ? void 0 : _a.data) !== null && _e !== void 0 ? _e : []).find((sub) => sub.object === "page");
+            return {
+                configured: Boolean(pageSubscription),
+                pageFields: ((_f = pageSubscription === null || pageSubscription === void 0 ? void 0 : pageSubscription.fields) !== null && _f !== void 0 ? _f : []).map((f) => typeof f === "string" ? f : f.name),
+                callbackUrl: pageSubscription === null || pageSubscription === void 0 ? void 0 : pageSubscription.callback_url,
+            };
+        }
+        catch (error) {
+            return {
+                configured: false,
+                pageFields: [],
+                error: ((_d = (_c = (_b = error === null || error === void 0 ? void 0 : error.response) === null || _b === void 0 ? void 0 : _b.data) === null || _c === void 0 ? void 0 : _c.error) === null || _d === void 0 ? void 0 : _d.message) ||
+                    (error === null || error === void 0 ? void 0 : error.message) ||
+                    "Unknown error",
+            };
         }
     });
 }
